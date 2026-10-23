@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.jayway.jsonpath.JsonPath;
+
 import io.github.sknpz.tana.IntegrationTest;
 
 class StockMovementApiTests extends IntegrationTest {
@@ -96,7 +98,7 @@ class StockMovementApiTests extends IntegrationTest {
     private long movementId(String body, long productId) throws Exception {
         String json = apiPost(body, "/api/products/{id}/movements", productId)
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return com.jayway.jsonpath.JsonPath.<Number>read(json, "$.id").longValue();
+        return JsonPath.<Number>read(json, "$.id").longValue();
     }
 
     @Test
@@ -135,6 +137,9 @@ class StockMovementApiTests extends IntegrationTest {
 
     @Test
     void invalidDateFormatReturns400() throws Exception {
-        apiGet("/api/movements?from=2026-13-01").andExpect(status().isBadRequest());
+        apiGet("/api/movements?from=2026-13-01")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").exists());
     }
 }

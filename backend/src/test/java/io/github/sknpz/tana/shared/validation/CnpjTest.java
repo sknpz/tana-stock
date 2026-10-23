@@ -53,4 +53,20 @@ class CnpjTest {
         assertThat(Cnpj.normalize(null)).isNull();
         assertThat(Cnpj.normalize("./- ")).isNull();
     }
+
+    @Test
+    void formatsNumericCnpj() {
+        assertThat(Cnpj.format("11222333000181")).isEqualTo("11.222.333/0001-81");
+    }
+
+    @Test
+    void formatsAlphanumericCnpj() {
+        assertThat(Cnpj.format("12ABC34501DE35")).isEqualTo("12.ABC.345/01DE-35");
+    }
+
+    @Test
+    void formatLeavesNullAndWrongLengthUntouched() {
+        assertThat(Cnpj.format(null)).isNull();
+        assertThat(Cnpj.format("123")).isEqualTo("123");
+    }
 }

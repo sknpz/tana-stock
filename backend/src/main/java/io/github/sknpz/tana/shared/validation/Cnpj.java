@@ -27,6 +27,15 @@ public final class Cnpj {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    /** Aplica a máscara a um CNPJ já normalizado: "11222333000181" → "11.222.333/0001-81". Outros tamanhos voltam como estão. */
+    public static String format(String normalized) {
+        if (normalized == null || normalized.length() != 14) {
+            return normalized;
+        }
+        return normalized.substring(0, 2) + "." + normalized.substring(2, 5) + "." + normalized.substring(5, 8)
+                + "/" + normalized.substring(8, 12) + "-" + normalized.substring(12);
+    }
+
     public static boolean isValid(String value) {
         String cnpj = normalize(value);
         if (cnpj == null || !FORMAT.matcher(cnpj).matches()) {
