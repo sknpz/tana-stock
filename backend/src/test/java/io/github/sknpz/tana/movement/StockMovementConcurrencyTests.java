@@ -19,6 +19,7 @@ import io.github.sknpz.tana.IntegrationTest;
 import io.github.sknpz.tana.product.ProductCreateRequest;
 import io.github.sknpz.tana.product.ProductResponse;
 import io.github.sknpz.tana.product.ProductService;
+import io.github.sknpz.tana.shared.DateRange;
 import io.github.sknpz.tana.shared.exception.BusinessException;
 
 /**
@@ -73,7 +74,7 @@ class StockMovementConcurrencyTests extends IntegrationTest {
 
         // Histórico: a entrada "Estoque inicial" + uma saída por unidade, cada uma partindo
         // do saldo deixado pela anterior (nenhuma leu o mesmo saldo que outra)
-        List<StockMovementResponse> history = movementService.list(null, product.id(), Pageable.unpaged())
+        List<StockMovementResponse> history = movementService.list(null, product.id(), new DateRange(null, null), Pageable.unpaged())
                 .getContent();
         assertThat(history).hasSize(1 + INITIAL_STOCK);
         assertThat(history)

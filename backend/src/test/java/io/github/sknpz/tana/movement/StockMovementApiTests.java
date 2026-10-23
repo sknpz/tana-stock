@@ -7,10 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.github.sknpz.tana.IntegrationTest;
 
 class StockMovementApiTests extends IntegrationTest {
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private static String movement(String type, int quantity, String notes) {
         return """
@@ -81,5 +86,55 @@ class StockMovementApiTests extends IntegrationTest {
     void movementOnUnknownProductIsNotFound() throws Exception {
         apiPost(movement("ENTRY", 1, null), "/api/products/{id}/movements", 999999)
                 .andExpect(status().isNotFound());
+    }
+
+    // Ajusta created_at direto no banco: a API sempre grava "agora"
+    private void setCreatedAt(long movementId, String instant) {
+        jdbc.update("UPDATE stock_movement SET created_at = ?::timestamptz WHERE id = ?", instant, movementId);
+    }
+
+    private long movementId(String body, long productId) throws Exception {
+        String json = apiPost(body, "/api/products/{id}/movements", productId)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.<Number>read(json, "$.id").longValue();
+    }
+
+    @Test
+    void periodBoundariesFollowCompanyZone() throws Exception {
+        long id = createProduct(unique("Telha"), "2.00", 100, 1);
+        long first = movementId(movement("ENTRY", 1, "Dentro"), id);
+        long second = movementId(movement("ENTRY", 2, "Fora"), id);
+        setCreatedAt(first, "2026-03-10T02:30:00Z"); // 09/03 23:30 em São Paulo
+        setCreatedAt(second, "2026-03-10T03:00:00Z"); // 10/03 00:00 em São Paulo
+
+        apiGet("/api/movements?from=2026-03-01&to=2026-03-09&productId={id}", id)
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].notes").value("Dentro"));
+    }
+
+    @Test
+    void periodCombinesWithType() throws Exception {
+        long id = createProduct(unique("Vergalhão"), "9.00", 100, 1);
+        long entry = movementId(movement("ENTRY", 1, "Entrada"), id);
+        long exit = movementId(movement("EXIT", 1, "Saída"), id);
+        setCreatedAt(entry, "2026-04-05T12:00:00Z");
+        setCreatedAt(exit, "2026-04-05T13:00:00Z");
+
+        apiGet("/api/movements?productId={id}&type=EXIT&from=2026-04-05&to=2026-04-05", id)
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].notes").value("Saída"));
+    }
+
+    @Test
+    void fromAfterToReturns400WithFieldError() throws Exception {
+        apiGet("/api/movements?from=2026-04-10&to=2026-04-01")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Dados inválidos"))
+                .andExpect(jsonPath("$.errors.to").value("A data final não pode ser anterior à inicial."));
+    }
+
+    @Test
+    void invalidDateFormatReturns400() throws Exception {
+        apiGet("/api/movements?from=2026-13-01").andExpect(status().isBadRequest());
     }
 }

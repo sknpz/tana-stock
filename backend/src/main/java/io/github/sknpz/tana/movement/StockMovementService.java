@@ -1,5 +1,8 @@
 package io.github.sknpz.tana.movement;
 
+import java.time.ZoneId;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -8,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.github.sknpz.tana.product.Product;
 import io.github.sknpz.tana.product.ProductRepository;
+import io.github.sknpz.tana.shared.DateRange;
 import io.github.sknpz.tana.shared.exception.ResourceNotFoundException;
 import io.github.sknpz.tana.user.CurrentUser;
 
@@ -17,12 +21,14 @@ public class StockMovementService {
     private final StockMovementRepository movementRepository;
     private final ProductRepository productRepository;
     private final CurrentUser currentUser;
+    private final ZoneId zoneId;
 
     public StockMovementService(StockMovementRepository movementRepository, ProductRepository productRepository,
-            CurrentUser currentUser) {
+            CurrentUser currentUser, @Value("${app.zone-id}") ZoneId zoneId) {
         this.movementRepository = movementRepository;
         this.productRepository = productRepository;
         this.currentUser = currentUser;
+        this.zoneId = zoneId;
     }
 
     @Transactional
@@ -37,14 +43,9 @@ public class StockMovementService {
     }
 
     @Transactional(readOnly = true)
-    public Page<StockMovementResponse> list(MovementType type, Long productId, Pageable pageable) {
-        Specification<StockMovement> spec = Specification.unrestricted();
-        if (type != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("type"), type));
-        }
-        if (productId != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("product").get("id"), productId));
-        }
+    public Page<StockMovementResponse> list(MovementType type, Long productId, DateRange period, Pageable pageable) {
+        Specification<StockMovement> spec = StockMovementSpecifications.matching(type, productId,
+                period.startInclusive(zoneId), period.endExclusive(zoneId));
         return movementRepository.findAll(spec, pageable).map(StockMovementResponse::from);
     }
 }
