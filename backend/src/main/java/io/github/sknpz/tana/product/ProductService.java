@@ -3,10 +3,8 @@ package io.github.sknpz.tana.product;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.time.ZoneId;
 import java.util.stream.Stream;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,17 +32,14 @@ public class ProductService {
     private final CategoryService categoryService;
     private final SupplierService supplierService;
     private final CurrentUser currentUser;
-    private final ZoneId zoneId;
 
     public ProductService(ProductRepository productRepository, StockMovementRepository movementRepository,
-            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser,
-            @Value("${app.zone-id}") ZoneId zoneId) {
+            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser) {
         this.productRepository = productRepository;
         this.movementRepository = movementRepository;
         this.categoryService = categoryService;
         this.supplierService = supplierService;
         this.currentUser = currentUser;
-        this.zoneId = zoneId;
     }
 
     @Transactional(readOnly = true)
