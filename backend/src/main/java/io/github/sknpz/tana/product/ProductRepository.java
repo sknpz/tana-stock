@@ -4,11 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,14 +23,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Override
     @EntityGraph(attributePaths = {"category", "supplier"})
     Page<Product> findAll(Specification<Product> spec, Pageable pageable);
-
-    /**
-     * Produtos filtrados em fluxo, para a exportação. O stream precisa ser consumido (e fechado)
-     * dentro da transação; categoria e fornecedor vêm no mesmo SELECT.
-     */
-    default Stream<Product> streamAll(Specification<Product> spec, Sort sort) {
-        return findBy(spec, query -> query.project("category", "supplier").sortBy(sort).stream());
-    }
 
     @EntityGraph(attributePaths = {"category", "supplier"})
     Optional<Product> findByIdAndActiveTrue(Long id);

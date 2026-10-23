@@ -13,15 +13,29 @@ import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.hibernate.Session;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.web.servlet.ResultActions;
 
 import io.github.sknpz.tana.IntegrationTest;
+import jakarta.persistence.EntityManager;
 
 class ProductCsvExportTests extends IntegrationTest {
 
     private static final String HEADER =
             "SKU;Produto;Categoria;Fornecedor;Preço unitário;Quantidade;Estoque mínimo;Valor em estoque;Situação";
+
+    @Autowired
+    private ProductService productService;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Value("${app.zone-id}")
     private ZoneId zone;
@@ -105,5 +119,22 @@ class ProductCsvExportTests extends IntegrationTest {
     @Test
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/products/export.csv")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void exportDoesNotKeepEntitiesInPersistenceContext() throws Exception {
+        String name = unique("Memoria");
+        createProduct(name + " a", "1", 20, 5);
+        createProduct(name + " b", "1", 20, 5);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+
+        // Mesma transação para o serviço e para a conferência do contexto de persistência
+        Long managed = new TransactionTemplate(transactionManager).execute(status -> {
+            productService.exportCsv(name, null, null, null, out);
+            return entityManager.unwrap(Session.class).getStatistics().getEntityCount() + 0L;
+        });
+
+        assertThat(out.toString(StandardCharsets.UTF_8).split("\r\n")).hasSize(3);
+        assertThat(managed).isZero();
     }
 }

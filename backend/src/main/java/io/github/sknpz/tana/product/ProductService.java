@@ -18,9 +18,11 @@ import io.github.sknpz.tana.movement.StockMovementRepository;
 import io.github.sknpz.tana.shared.exception.ConflictException;
 import io.github.sknpz.tana.shared.csv.CsvWriter;
 import io.github.sknpz.tana.shared.exception.ResourceNotFoundException;
+import io.github.sknpz.tana.shared.persistence.EntityStreams;
 import io.github.sknpz.tana.supplier.Supplier;
 import io.github.sknpz.tana.supplier.SupplierService;
 import io.github.sknpz.tana.user.CurrentUser;
+import jakarta.persistence.EntityManager;
 
 @Service
 public class ProductService {
@@ -32,14 +34,17 @@ public class ProductService {
     private final CategoryService categoryService;
     private final SupplierService supplierService;
     private final CurrentUser currentUser;
+    private final EntityManager entityManager;
 
     public ProductService(ProductRepository productRepository, StockMovementRepository movementRepository,
-            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser) {
+            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser,
+            EntityManager entityManager) {
         this.productRepository = productRepository;
         this.movementRepository = movementRepository;
         this.categoryService = categoryService;
         this.supplierService = supplierService;
         this.currentUser = currentUser;
+        this.entityManager = entityManager;
     }
 
     @Transactional(readOnly = true)
@@ -54,9 +59,9 @@ public class ProductService {
     @Transactional(readOnly = true)
     public void exportCsv(String search, StockStatus status, Long categoryId, Long supplierId, OutputStream out) {
         try (CsvWriter csv = CsvWriter.open(out);
-                Stream<Product> products = productRepository.streamAll(
+                Stream<Product> products = EntityStreams.stream(entityManager, Product.class,
                         ProductSpecifications.matching(search, status, categoryId, supplierId),
-                        Sort.by("name"))) {
+                        Sort.by("name"), "category", "supplier")) {
             csv.row("SKU", "Produto", "Categoria", "Fornecedor", "Preço unitário", "Quantidade",
                     "Estoque mínimo", "Valor em estoque", "Situação");
             products.forEach(product -> csv.row(
