@@ -70,10 +70,32 @@
       </div>
     `;
 
+    // Em erros de validação (400) a mensagem do primeiro campo é mais útil que a genérica
+    const errorMessage = (error) => Object.values(error.fieldErrors || {})[0] || error.message;
+
     // 401 já leva para a tela de login (api.onUnauthorized); os demais erros são exibidos ao usuário
     const reportError = (error) => {
-      if (error.status !== 401) alert(error.message);
+      if (error.status !== 401) alert(errorMessage(error));
     };
+
+    // Desabilita o botão enquanto o arquivo é gerado e baixado
+    async function runDownload(button, action) {
+      const label = button.innerHTML;
+      button.disabled = true;
+      button.textContent = 'Gerando...';
+      try {
+        await action();
+      } catch (error) {
+        reportError(error);
+      } finally {
+        button.disabled = false;
+        button.innerHTML = label;
+      }
+    }
+
+    // Data local no formato yyyy-MM-dd (toISOString usaria UTC e viraria o dia à noite)
+    const toInputDate = (date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     const ROLE_LABELS = { ADMIN: 'Administrador', USER: 'Usuário' };
 
@@ -111,7 +133,7 @@
         if (isLatest()) render(data);
       } catch (error) {
         if (isLatest()) {
-          document.getElementById(containerId).innerHTML = emptyState('🔌', 'Não foi possível carregar os dados', error.message);
+          document.getElementById(containerId).innerHTML = emptyState('🔌', 'Não foi possível carregar os dados', errorMessage(error));
         }
       }
     }
@@ -124,7 +146,7 @@
     function resetFilters() {
       productFilters = { search: '', status: '', page: 0 };
       supplierSearch = '';
-      movementFilters = { type: '', page: 0 };
+      movementFilters = { type: '', from: '', to: '', page: 0 };
     }
     resetFilters();
 
@@ -362,6 +384,7 @@
               <span class="search-icon">🔍</span>
               <input type="text" placeholder="Buscar por nome ou SKU..." id="searchProducts" value="${escapeHtml(productFilters.search)}">
             </div>
+            <button class="btn btn-secondary" id="exportProductsBtn">⬇️ Exportar CSV</button>
             <button class="btn btn-primary" id="addProductBtn">
               <span>➕</span> Novo Produto
             </button>
@@ -382,6 +405,8 @@
       renderProductsTable(productsPage);
 
       document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
+      document.getElementById('exportProductsBtn').addEventListener('click', (e) =>
+        runDownload(e.currentTarget, () => api.products.exportCsv({ search: productFilters.search, status: productFilters.status })));
       document.getElementById('searchProducts').addEventListener('input', debounce((e) => {
         productFilters.search = e.target.value.trim();
         productFilters.page = 0;
@@ -486,6 +511,7 @@
               <span class="search-icon">🔍</span>
               <input type="text" placeholder="Buscar fornecedores..." id="searchSuppliers" value="${escapeHtml(supplierSearch)}">
             </div>
+            <button class="btn btn-secondary" id="exportSuppliersBtn">⬇️ Exportar CSV</button>
             <button class="btn btn-primary" id="addSupplierBtn">
               <span>➕</span> Novo Fornecedor
             </button>
@@ -500,6 +526,8 @@
       renderSuppliersTable(suppliers);
 
       document.getElementById('addSupplierBtn').addEventListener('click', () => openSupplierModal());
+      document.getElementById('exportSuppliersBtn').addEventListener('click', (e) =>
+        runDownload(e.currentTarget, () => api.suppliers.exportCsv(supplierSearch)));
       document.getElementById('searchSuppliers').addEventListener('input', debounce((e) => {
         supplierSearch = e.target.value.trim();
         refreshTable('suppliersTable', loadSuppliers, renderSuppliersTable);
@@ -560,12 +588,21 @@
             <h2>Movimentações</h2>
             <p>Histórico de entradas e saídas</p>
           </div>
+          <div class="top-actions">
+            <button class="btn btn-secondary" id="exportMovementsBtn">⬇️ Exportar CSV</button>
+          </div>
         </div>
 
         <div class="filters">
           <button class="filter-btn ${movementFilters.type === '' ? 'active' : ''}" data-filter="">Todas</button>
           <button class="filter-btn ${movementFilters.type === 'ENTRY' ? 'active' : ''}" data-filter="ENTRY">Entradas</button>
           <button class="filter-btn ${movementFilters.type === 'EXIT' ? 'active' : ''}" data-filter="EXIT">Saídas</button>
+          <label class="date-filter">De
+            <input type="date" id="movementsFrom" value="${escapeHtml(movementFilters.from)}">
+          </label>
+          <label class="date-filter">Até
+            <input type="date" id="movementsTo" value="${escapeHtml(movementFilters.to)}">
+          </label>
         </div>
 
         <div class="card">
@@ -574,6 +611,19 @@
       `;
 
       renderMovementsTable(movementsPage);
+
+      document.getElementById('exportMovementsBtn').addEventListener('click', (e) =>
+        runDownload(e.currentTarget, () => api.movements.exportCsv({
+          type: movementFilters.type, from: movementFilters.from, to: movementFilters.to
+        })));
+
+      [['movementsFrom', 'from'], ['movementsTo', 'to']].forEach(([id, key]) => {
+        document.getElementById(id).addEventListener('change', (e) => {
+          movementFilters[key] = e.target.value;
+          movementFilters.page = 0;
+          refreshMovementsTable();
+        });
+      });
 
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -646,6 +696,9 @@
             <h2>Relatórios</h2>
             <p>Análises e estatísticas do estoque</p>
           </div>
+          <div class="top-actions">
+            <button class="btn btn-primary" id="openPdfModalBtn">📄 Gerar PDF</button>
+          </div>
         </div>
 
         <div class="stats-grid">
@@ -712,6 +765,9 @@
           ` : emptyState('📊', 'Sem dados para exibir')}
         </div>
       `;
+
+      document.getElementById('openPdfModalBtn').addEventListener('click', openPdfModal);
+      api.reports.wakeUp();
     }
 
     // Alertas
@@ -1259,6 +1315,52 @@
         showFormError(form, error);
       } finally {
         submitBtn.disabled = false;
+      }
+    });
+
+    // Modal Gerar PDF
+    const pdfForm = document.getElementById('pdfForm');
+
+    function updatePdfDates() {
+      document.getElementById('pdfDates').hidden = pdfForm.kind.value !== 'full';
+    }
+
+    function openPdfModal() {
+      pdfForm.reset();
+      clearFormError(pdfForm);
+      const today = new Date();
+      pdfForm.from.value = toInputDate(new Date(today.getFullYear(), today.getMonth(), 1));
+      pdfForm.to.value = toInputDate(today);
+      updatePdfDates();
+      document.getElementById('pdfModal').classList.add('open');
+    }
+
+    function closePdfModal() {
+      document.getElementById('pdfModal').classList.remove('open');
+      pdfForm.reset();
+      clearFormError(pdfForm);
+    }
+
+    document.getElementById('closePdfModal').addEventListener('click', closePdfModal);
+    document.getElementById('cancelPdf').addEventListener('click', closePdfModal);
+    pdfForm.querySelectorAll('input[name="kind"]').forEach(radio => radio.addEventListener('change', updatePdfDates));
+
+    pdfForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = pdfForm.querySelector('button[type="submit"]');
+      const label = submitBtn.textContent;
+
+      clearFormError(pdfForm);
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Gerando...';
+      try {
+        await api.reports.downloadPdf(pdfForm.kind.value, { from: pdfForm.from.value, to: pdfForm.to.value });
+        closePdfModal();
+      } catch (error) {
+        showFormError(pdfForm, error);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = label;
       }
     });
 

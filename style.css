@@ -412,6 +412,47 @@
       color: var(--text-muted);
     }
 
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .date-filter input {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-white);
+      color: var(--text-dark);
+      font-size: 13px;
+      font-family: inherit;
+      color-scheme: light;
+    }
+
+    .date-filter input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    /* Ícone do calendário legível no tema escuro */
+    body.dark .date-filter input,
+    body.dark .form-input[type="date"] {
+      color-scheme: dark;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 14px;
+      color: var(--text-dark);
+      cursor: pointer;
+    }
+
     .filter-btn:hover, .filter-btn.active {
       background: var(--primary);
       color: white;
@@ -844,4 +885,4 @@
       .form-row {
         grid-template-columns: 1fr;
       }
-    }
+    }
