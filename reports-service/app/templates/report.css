@@ -1,0 +1,224 @@
+/* Estilo dos PDFs do Tana Stock (WeasyPrint). Cores do front-end: primária #4338ca. */
+
+@page {
+  size: A4;
+  margin: 14mm 14mm 16mm;
+
+  @bottom-left {
+    content: "Tana Stock";
+    font: 700 7.5pt "DejaVu Sans", sans-serif;
+    color: #4338ca;
+    border-top: 0.5pt solid #e2e8f0;
+    padding-top: 2mm;
+    vertical-align: top;
+  }
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    font: 7.5pt "DejaVu Sans", sans-serif;
+    color: #64748b;
+    border-top: 0.5pt solid #e2e8f0;
+    padding-top: 2mm;
+    vertical-align: top;
+  }
+  @top-right {
+    content: string(running-title);
+    font: 7.5pt "DejaVu Sans", sans-serif;
+    color: #64748b;
+  }
+}
+
+/* O cabeçalho completo já aparece na primeira página */
+@page :first {
+  @top-right { content: none; }
+}
+
+:root {
+  --primary: #4338ca;
+  --primary-dark: #3730a3;
+  --primary-soft: #eef2ff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+}
+
+html {
+  font-family: "DejaVu Sans", sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+body { margin: 0; }
+
+h1, h2, p { margin: 0; }
+
+/* O período do cabeçalho vira o título corrido das páginas seguintes */
+.meta .period strong { string-set: running-title "Relatório completo · " content(); }
+
+/* Cabeçalho */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 3mm;
+  border-bottom: 1.5pt solid var(--primary);
+}
+.brand { display: flex; align-items: center; gap: 3mm; flex: none; white-space: nowrap; }
+.logo { width: 11mm; height: 11mm; }
+.brand-name { font-size: 7.5pt; font-weight: 700; color: var(--primary); letter-spacing: 0.04em; }
+h1 { font-size: 15pt; font-weight: 700; color: var(--ink); line-height: 1.15; }
+.meta { text-align: right; color: var(--muted); font-size: 7.5pt; line-height: 1.5; }
+.meta .period { color: var(--ink); font-size: 8.5pt; }
+.meta strong { color: var(--primary-dark); }
+
+/* Indicadores */
+.kpis {
+  display: flex;
+  gap: 3mm;
+  margin-top: 4.5mm;
+}
+.kpi {
+  flex: 1;
+  background: var(--primary-soft);
+  border-left: 2pt solid var(--primary);
+  border-radius: 1.5mm;
+  padding: 2.2mm 3mm;
+}
+.kpi-label {
+  display: block;
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.kpi-value {
+  display: block;
+  margin-top: 0.6mm;
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--primary-dark);
+  white-space: nowrap;
+}
+.kpi-sub { display: block; font-size: 7pt; color: var(--muted); }
+.kpi-alert { background: #fff7ed; border-left-color: #c2410c; }
+.kpi-alert .kpi-value { color: #9a3412; }
+.kpis-2 { margin-top: 3mm; margin-bottom: 4mm; }
+
+/* Seções */
+.section { margin-top: 5mm; }
+.section h2 {
+  font-size: 10pt;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 2mm;
+}
+.page-start { break-before: page; margin-top: 0; }
+.lead { color: var(--muted); font-size: 7.5pt; margin: -1mm 0 2mm; }
+.note { margin-top: 1.5mm; color: var(--muted); font-size: 7.5pt; font-style: italic; }
+.note.warning {
+  margin: 0 0 2.5mm;
+  padding: 1.8mm 3mm;
+  background: #fff7ed;
+  border-left: 2pt solid #c2410c;
+  color: #9a3412;
+  font-style: normal;
+}
+.empty, .no-data { color: var(--muted); font-style: italic; }
+
+
+/* Tabelas */
+table.data {
+  width: 100%;
+  table-layout: fixed;
+  /* Bordas separadas: com "collapse" o WeasyPrint desenha emendas visíveis entre as células */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 7.5pt;
+}
+/* Fundo na linha, não nas células: evita frestas claras entre as colunas do cabeçalho */
+table.data thead tr { background: var(--primary); }
+table.data th {
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+  padding: 1.3mm 2mm;
+}
+table.data td {
+  padding: 1.2mm 2mm;
+  border-bottom: 0.5pt solid var(--line);
+  vertical-align: middle;
+}
+table.data:not(.compact) tbody tr:nth-child(even) td { background: #f8fafc; }
+table.data thead { display: table-header-group; }
+table.data tr { break-inside: avoid; }
+table.data .num { text-align: right; white-space: nowrap; }
+table.data tr.total { background: var(--primary-soft); }
+table.data tr.total td {
+  font-weight: 700;
+  color: var(--primary-dark);
+  border-top: 1pt solid var(--primary);
+  border-bottom: none;
+}
+
+/* No Resumo cada linha cabe em uma linha só; nomes longos terminam em reticências */
+table.compact td { height: 5.6mm; padding-top: 0; padding-bottom: 0; }
+table.compact td.clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Colunas */
+col.c-name { width: auto; }
+col.c-qty { width: 15mm; }
+col.c-money { width: 28mm; }
+col.c-pct { width: 15mm; }
+col.c-bar { width: 52mm; }
+col.c-sku { width: 22mm; }
+col.c-code { width: 19mm; }
+col.c-status { width: 25mm; }
+col.c-cat { width: 27mm; }
+col.c-sup { width: 36mm; }
+col.c-price { width: 20mm; }
+col.c-total { width: 22mm; }
+col.c-date { width: 28mm; }
+col.c-type { width: 18mm; }
+col.c-user { width: 28mm; }
+
+/* Valor por categoria: rosca + tabela */
+.category-block { display: flex; align-items: center; gap: 6mm; }
+.donut { flex: none; width: 34mm; text-align: center; }
+.donut img { width: 34mm; height: 34mm; display: block; }
+.category-table { flex: 1 1 0; min-width: 0; }
+.swatch {
+  display: inline-block;
+  width: 2.4mm;
+  height: 2.4mm;
+  border-radius: 0.6mm;
+  margin-right: 1.8mm;
+  vertical-align: -0.2mm;
+}
+
+/* Barras proporcionais: uma imagem que ocupa a coluna inteira, alinhada às linhas (5,6 mm cada) */
+table.top-products td.bars {
+  padding: 0 3mm;
+  height: auto;
+  background: none;
+  border-bottom: none;
+}
+table.top-products td.bars img { display: block; width: 100%; }
+
+/* Etiquetas de situação e tipo */
+.tag {
+  display: inline-block;
+  border-radius: 1mm;
+  padding: 0.2mm 1.6mm;
+  font-size: 6.5pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tag-out { background: #fde2e4; color: #9f1239; }
+.tag-low { background: #fef3c7; color: #92400e; }
+.tag-entry { background: #dcfce7; color: #166534; }
+.tag-exit { background: #fee2e2; color: #991b1b; }

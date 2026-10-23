@@ -1,6 +1,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# Aviso de ambiente: sem a libharfbuzz-subset0 instalada, o WeasyPrint usa o fontTools para os subconjuntos de fonte
+filterwarnings = ["ignore:HarfBuzz-Subset will be required:DeprecationWarning"]
 
 [tool.ruff]
 line-length = 120

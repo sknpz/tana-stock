@@ -1,0 +1,193 @@
+{# Seções compartilhadas entre o Resumo e o Completo. Cada macro recebe o contexto do relatório. #}
+
+{% macro header(report) %}
+<header class="report-header">
+  <div class="brand">
+    <img class="logo" src="logo.svg" alt="">
+    <div>
+      <div class="brand-name">Tana Stock</div>
+      <h1>Relatório de estoque</h1>
+    </div>
+  </div>
+  <div class="meta">
+    {% if report.period %}
+    <div class="period">Período: <strong>{{ report.period }}</strong></div>
+    {% endif %}
+    <div>{{ report.generated_at }} · gerado por {{ report.user_name }}</div>
+  </div>
+</header>
+{% endmacro %}
+
+{% macro kpis(report) %}
+<section class="kpis">
+  <div class="kpi"><span class="kpi-label">Produtos</span><span class="kpi-value">{{ report.kpis.products | integer }}</span></div>
+  <div class="kpi"><span class="kpi-label">Unidades</span><span class="kpi-value">{{ report.kpis.units | integer }}</span></div>
+  <div class="kpi"><span class="kpi-label">Valor total</span><span class="kpi-value">{{ report.kpis.value | money }}</span></div>
+  <div class="kpi{% if report.kpis.alerts %} kpi-alert{% endif %}"><span class="kpi-label">Alertas</span><span class="kpi-value">{{ report.kpis.alerts | integer }}</span></div>
+</section>
+{% endmacro %}
+
+{% macro categories(report) %}
+<section class="section">
+  <h2>Valor por categoria</h2>
+  {% if report.categories %}
+  <div class="category-block">
+    <div class="donut">
+      {% if report.category_chart %}
+      <img src="{{ report.category_chart }}" alt="">
+      {% else %}
+      <p class="no-data">Sem dados</p>
+      {% endif %}
+    </div>
+    <div class="category-table">
+    <table class="data compact">
+      <colgroup><col class="c-name"><col class="c-qty"><col class="c-money"><col class="c-pct"></colgroup>
+      <thead><tr><th>Categoria</th><th class="num">Qtd.</th><th class="num">Valor</th><th class="num">%</th></tr></thead>
+      <tbody>
+        {% for row in report.categories %}
+        <tr>
+          <td class="clip"><span class="swatch" style="background: {{ row.color }}"></span>{{ row.category }}</td>
+          <td class="num">{{ row.quantity | integer }}</td>
+          <td class="num">{{ row.value | money }}</td>
+          <td class="num">{{ row.percentage | percent }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% else %}
+  <p class="no-data">Sem dados</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro top_products(report) %}
+{% set rows = report.top_products %}
+<section class="section">
+  <h2>Produtos mais valiosos</h2>
+  {% if rows %}
+  <table class="data compact top-products">
+    <colgroup><col class="c-name"><col class="c-qty"><col class="c-bar"><col class="c-money"></colgroup>
+    <thead><tr><th>Produto</th><th class="num">Qtd.</th><th></th><th class="num">Valor</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="clip">{{ row.name }}</td>
+        <td class="num">{{ row.quantity | integer }}</td>
+        {% if loop.first %}
+        <td class="bars" rowspan="{{ rows | length }}"><img src="{{ report.top_chart }}" alt="" style="height: {{ rows | length * 5.6 }}mm"></td>
+        {% endif %}
+        <td class="num">{{ row.totalValue | money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-data">Sem dados</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro alerts(report) %}
+<section class="section">
+  <h2>Alertas de estoque</h2>
+  {% if report.alerts %}
+  <table class="data compact">
+    <colgroup><col class="c-name"><col class="c-sku"><col class="c-qty"><col class="c-qty"><col class="c-status"></colgroup>
+    <thead><tr><th>Produto</th><th>SKU</th><th class="num">Atual</th><th class="num">Mínimo</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for row in report.alerts %}
+      <tr>
+        <td class="clip">{{ row.name }}</td>
+        <td class="clip">{{ row.sku }}</td>
+        <td class="num">{{ row.quantity | integer }}</td>
+        <td class="num">{{ row.min_stock | integer }}</td>
+        <td><span class="tag {{ 'tag-out' if row.out else 'tag-low' }}">{{ row.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if report.hidden_alerts %}
+  <p class="note">… e mais {{ report.hidden_alerts | integer }} produtos com alerta. Veja a lista completa no relatório completo.</p>
+  {% endif %}
+  {% else %}
+  <p class="empty">Nenhum produto com estoque baixo ou zerado.</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro overview(report) %}
+{{ header(report) }}
+{{ kpis(report) }}
+{{ categories(report) }}
+{{ top_products(report) }}
+{{ alerts(report) }}
+{% endmacro %}
+
+{% macro inventory(report) %}
+<section class="section page-start">
+  <h2>Inventário completo</h2>
+  <p class="lead">{{ report.inventory | length | integer }} produtos ativos, em ordem alfabética.</p>
+  <table class="data">
+    <colgroup><col class="c-code"><col class="c-name"><col class="c-cat"><col class="c-sup"><col class="c-qty"><col class="c-price"><col class="c-total"></colgroup>
+    <thead>
+      <tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Preço (R$)</th><th class="num">Total (R$)</th></tr>
+    </thead>
+    <tbody>
+      {% for row in report.inventory %}
+      <tr>
+        <td>{{ row.sku }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.category }}</td>
+        <td>{{ row.supplier }}</td>
+        <td class="num">{{ row.quantity | integer }}</td>
+        <td class="num">{{ row.unit_price | amount }}</td>
+        <td class="num">{{ row.total | amount }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">Nenhum produto cadastrado.</td></tr>
+      {% endfor %}
+      {# No fim do corpo, e não em <tfoot>, para o total geral não se repetir em cada página #}
+      <tr class="total"><td colspan="4">Total geral</td><td class="num">{{ report.inventory_units | integer }}</td><td></td><td class="num">{{ report.inventory_total | amount }}</td></tr>
+    </tbody>
+  </table>
+</section>
+{% endmacro %}
+
+{% macro movements(report) %}
+{% set totals = report.movement_totals %}
+<section class="section page-start">
+  <h2>Movimentações no período</h2>
+  <p class="lead">{{ report.period }}</p>
+  <div class="kpis kpis-2">
+    <div class="kpi"><span class="kpi-label">Entradas</span><span class="kpi-value">{{ totals.entries.units | integer }} un.</span><span class="kpi-sub">{{ totals.entries.count | integer }} movimentações</span></div>
+    <div class="kpi"><span class="kpi-label">Saídas</span><span class="kpi-value">{{ totals.exits.units | integer }} un.</span><span class="kpi-sub">{{ totals.exits.count | integer }} movimentações</span></div>
+  </div>
+  {% if report.truncated %}
+  <p class="note warning">Mostrando as {{ report.max_movements | integer }} movimentações mais recentes do período.</p>
+  {% endif %}
+  {% if report.movements %}
+  <table class="data">
+    <colgroup><col class="c-date"><col class="c-name"><col class="c-type"><col class="c-qty"><col class="c-qty"><col class="c-user"></colgroup>
+    <thead>
+      <tr><th>Data</th><th>Produto</th><th>Tipo</th><th class="num">Qtd.</th><th class="num">Saldo</th><th>Usuário</th></tr>
+    </thead>
+    <tbody>
+      {% for row in report.movements %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.product }}</td>
+        <td><span class="tag {{ 'tag-entry' if row.entry else 'tag-exit' }}">{{ row.type }}</span></td>
+        <td class="num">{{ row.quantity | integer }}</td>
+        <td class="num">{{ row.balance | integer }}</td>
+        <td>{{ row.user }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Nenhuma movimentação no período.</p>
+  {% endif %}
+</section>
+{% endmacro %}
