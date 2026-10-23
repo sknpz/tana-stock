@@ -3,6 +3,7 @@ package io.github.sknpz.tana.product;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
@@ -53,6 +54,13 @@ public class ProductService {
         return productRepository
                 .findAll(ProductSpecifications.matching(search, status, categoryId, supplierId), pageable)
                 .map(ProductResponse::from);
+    }
+
+    /** Todos os produtos ativos, por nome, para o relatório em PDF. */
+    @Transactional(readOnly = true)
+    public List<ProductResponse> inventory() {
+        return productRepository.findAll(ProductSpecifications.matching(null, null, null, null), Sort.by("name"))
+                .stream().map(ProductResponse::from).toList();
     }
 
     /** Escreve o CSV direto na saída, linha a linha, dentro da transação (o stream lê do banco aos poucos). */

@@ -57,6 +57,26 @@ public interface ReportRepository extends Repository<Product, Long> {
     @Query(value = "SELECT count(*) FROM stock_movement WHERE created_at >= :since", nativeQuery = true)
     long countMovementsSince(@Param("since") Instant since);
 
+    @Query(value = """
+            SELECT count(*) FILTER (WHERE type = 'ENTRY')                           AS "entryCount",
+                   coalesce(sum(quantity) FILTER (WHERE type = 'ENTRY'), 0)         AS "entryUnits",
+                   count(*) FILTER (WHERE type = 'EXIT')                            AS "exitCount",
+                   coalesce(sum(quantity) FILTER (WHERE type = 'EXIT'), 0)          AS "exitUnits"
+            FROM stock_movement
+            WHERE created_at >= :start AND created_at < :end
+            """, nativeQuery = true)
+    MovementTotalsRow movementTotals(@Param("start") Instant start, @Param("end") Instant end);
+
+    interface MovementTotalsRow {
+        Long getEntryCount();
+
+        Long getEntryUnits();
+
+        Long getExitCount();
+
+        Long getExitUnits();
+    }
+
     interface InventoryTotals {
         Long getTotalProducts();
 

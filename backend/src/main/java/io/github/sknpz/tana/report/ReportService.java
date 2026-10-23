@@ -12,7 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import io.github.sknpz.tana.report.InventorySummaryResponse.CategoryValue;
+import io.github.sknpz.tana.report.MovementPeriodSummaryResponse.MovementTotals;
 import io.github.sknpz.tana.report.ReportRepository.InventoryTotals;
+import io.github.sknpz.tana.report.ReportRepository.MovementTotalsRow;
+import io.github.sknpz.tana.shared.DateRange;
 
 @Service
 public class ReportService {
@@ -56,6 +59,16 @@ public class ReportService {
                 .map(p -> new TopProductResponse(p.getId(), p.getName(), p.getCategory(), p.getQuantity(),
                         p.getTotalValue()))
                 .toList();
+    }
+
+    /** Totais de entradas e saídas no período; ambos os limites são obrigatórios neste relatório. */
+    @Transactional(readOnly = true)
+    public MovementPeriodSummaryResponse movementsSummary(DateRange period) {
+        MovementTotalsRow row = reportRepository.movementTotals(period.startInclusive(zoneId),
+                period.endExclusive(zoneId));
+        return new MovementPeriodSummaryResponse(period.from(), period.to(),
+                new MovementTotals(row.getEntryCount(), row.getEntryUnits()),
+                new MovementTotals(row.getExitCount(), row.getExitUnits()));
     }
 
     private static BigDecimal percentage(BigDecimal part, BigDecimal total) {
