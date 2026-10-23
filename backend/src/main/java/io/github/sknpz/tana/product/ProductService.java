@@ -1,7 +1,15 @@
 package io.github.sknpz.tana.product;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.time.ZoneId;
+import java.util.stream.Stream;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +18,7 @@ import io.github.sknpz.tana.category.CategoryService;
 import io.github.sknpz.tana.movement.MovementType;
 import io.github.sknpz.tana.movement.StockMovementRepository;
 import io.github.sknpz.tana.shared.exception.ConflictException;
+import io.github.sknpz.tana.shared.csv.CsvWriter;
 import io.github.sknpz.tana.shared.exception.ResourceNotFoundException;
 import io.github.sknpz.tana.supplier.Supplier;
 import io.github.sknpz.tana.supplier.SupplierService;
@@ -25,14 +34,17 @@ public class ProductService {
     private final CategoryService categoryService;
     private final SupplierService supplierService;
     private final CurrentUser currentUser;
+    private final ZoneId zoneId;
 
     public ProductService(ProductRepository productRepository, StockMovementRepository movementRepository,
-            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser) {
+            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser,
+            @Value("${app.zone-id}") ZoneId zoneId) {
         this.productRepository = productRepository;
         this.movementRepository = movementRepository;
         this.categoryService = categoryService;
         this.supplierService = supplierService;
         this.currentUser = currentUser;
+        this.zoneId = zoneId;
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +53,38 @@ public class ProductService {
         return productRepository
                 .findAll(ProductSpecifications.matching(search, status, categoryId, supplierId), pageable)
                 .map(ProductResponse::from);
+    }
+
+    /** Escreve o CSV direto na saída, linha a linha, dentro da transação (o stream lê do banco aos poucos). */
+    @Transactional(readOnly = true)
+    public void exportCsv(String search, StockStatus status, Long categoryId, Long supplierId, OutputStream out) {
+        try (CsvWriter csv = CsvWriter.open(out);
+                Stream<Product> products = productRepository.streamAll(
+                        ProductSpecifications.matching(search, status, categoryId, supplierId),
+                        Sort.by("name"))) {
+            csv.row("SKU", "Produto", "Categoria", "Fornecedor", "Preço unitário", "Quantidade",
+                    "Estoque mínimo", "Valor em estoque", "Situação");
+            products.forEach(product -> csv.row(
+                    CsvWriter.text(product.getSku()),
+                    CsvWriter.text(product.getName()),
+                    product.getCategory() == null ? "" : CsvWriter.text(product.getCategory().getName()),
+                    product.getSupplier() == null ? "" : CsvWriter.text(product.getSupplier().getName()),
+                    CsvWriter.decimal(product.getUnitPrice()),
+                    String.valueOf(product.getQuantity()),
+                    String.valueOf(product.getMinStock()),
+                    CsvWriter.decimal(product.getTotalValue()),
+                    statusLabel(product.getStockStatus())));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String statusLabel(StockStatus status) {
+        return switch (status) {
+            case OK -> "OK";
+            case LOW_STOCK -> "Estoque baixo";
+            case OUT_OF_STOCK -> "Sem estoque";
+        };
     }
 
     @Transactional(readOnly = true)
