@@ -1322,7 +1322,11 @@
     const pdfForm = document.getElementById('pdfForm');
 
     function updatePdfDates() {
-      document.getElementById('pdfDates').hidden = pdfForm.kind.value !== 'full';
+      const full = pdfForm.kind.value === 'full';
+      document.getElementById('pdfDates').hidden = !full;
+      // Campo oculto e obrigatório travaria o envio sem aviso
+      pdfForm.from.required = full;
+      pdfForm.to.required = full;
     }
 
     function openPdfModal() {

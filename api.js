@@ -112,7 +112,7 @@
         document.body.appendChild(link);
         link.click();
         link.remove();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
 
       const apiUnreachable = `Não foi possível conectar à API em ${API_BASE_URL}. Verifique se o backend está rodando.`;
@@ -209,7 +209,7 @@
           topProducts: (limit) => request('GET', `/api/reports/top-products${query({ limit })}`),
           // kind: 'summary' (1 página) ou 'full' (inventário e movimentações do período from..to)
           downloadPdf: (kind, { from, to } = {}) => kind === 'full'
-            ? download(REPORTS_BASE_URL, `/reports/full.pdf${query({ from, to })}`, `relatorio-completo-${from}-a-${to}.pdf`, reportsUnreachable)
+            ? download(REPORTS_BASE_URL, `/reports/full.pdf${query({ from, to })}`, (from && to ? `relatorio-completo-${from}-a-${to}.pdf` : 'relatorio-completo.pdf'), reportsUnreachable)
             : download(REPORTS_BASE_URL, '/reports/summary.pdf', `relatorio-resumo-${today()}.pdf`, reportsUnreachable),
           // Acorda o serviço de PDF (Render free) sem avisar o usuário; erros são ignorados
           wakeUp: () => fetch(`${REPORTS_BASE_URL}/health`).catch(() => {})
