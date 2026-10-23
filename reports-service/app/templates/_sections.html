@@ -109,7 +109,7 @@
     </tbody>
   </table>
   {% if report.hidden_alerts %}
-  <p class="note">… e mais {{ report.hidden_alerts | integer }} produtos com alerta. Veja a lista completa no relatório completo.</p>
+  <p class="note">… e mais {{ report.hidden_alerts | integer }} {{ 'produto' if report.hidden_alerts == 1 else 'produtos' }} com alerta. Veja a lista completa no relatório completo.</p>
   {% endif %}
   {% else %}
   <p class="empty">Nenhum produto com estoque baixo ou zerado.</p>

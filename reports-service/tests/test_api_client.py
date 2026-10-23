@@ -104,3 +104,25 @@ def test_connection_error_becomes_502():
     with pytest.raises(ApiError) as exc:
         make_client(handler).summary()
     assert exc.value.status == 502
+
+
+def test_context_manager_closes_client():
+    client = make_client(lambda request: httpx.Response(200, json={}))
+    with client as same:
+        assert same is client
+    assert client._client.is_closed
+
+
+@pytest.mark.parametrize("response", [
+    httpx.Response(200, text="<html>nao e json</html>"),
+    httpx.Response(200, json={"content": []}),
+    httpx.Response(200, json={"page": {"totalPages": 1}}),
+])
+def test_malformed_success_body_becomes_502(response):
+    client = make_client(lambda request: response)
+
+    with pytest.raises(ApiError) as error:
+        client.me() if response.text.startswith("<") else client.products_by_status("LOW_STOCK")
+
+    assert error.value.status == 502
+    assert error.value.title == "API indisponível"

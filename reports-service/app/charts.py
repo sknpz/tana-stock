@@ -13,13 +13,22 @@ matplotlib.use("Agg")
 
 # Tons derivados da cor primária (#4338ca), do mais forte ao mais claro; cinza para "Outras"
 PALETTE = ("#4338ca", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe")
+# Cores extras para o Completo, que lista todas as categorias sem agrupar
+EXTRA_PALETTE = ("#0ea5e9", "#14b8a6", "#f59e0b", "#ec4899", "#64748b")
 OTHER_COLOR = "#94a3b8"
 TRACK_COLOR = "#eef2ff"
 SURFACE = "#ffffff"
 
 
-def color_for(index: int) -> str:
-    """Cor da categoria pela posição: as 5 primeiras usam a paleta, o resto entra em "Outras"."""
+def color_for(index: int, *, grouped: bool = True) -> str:
+    """Cor da categoria pela posição.
+
+    Agrupado (Resumo): as 5 primeiras usam a paleta e o resto entra em "Outras". Sem agrupar (Completo): cada
+    categoria ganha a sua cor, reiniciando a sequência só depois de esgotar as 10 cores.
+    """
+    if not grouped:
+        colors = PALETTE + EXTRA_PALETTE
+        return colors[index % len(colors)]
     return PALETTE[index] if index < len(PALETTE) else OTHER_COLOR
 
 
@@ -35,13 +44,13 @@ def _to_data_uri(fig: Figure, *, stretch: bool = False) -> str:
 
 
 def category_donut(rows: list[dict]) -> str | None:
-    """Rosca do valor por categoria, na ordem das linhas (as cores seguem `color_for`)."""
+    """Rosca do valor por categoria, na ordem das linhas, com a cor de cada uma (`color`) ou a da posição."""
     values = [float(row["value"]) for row in rows]
     if not values or sum(values) <= 0:
         return None
     fig = Figure(figsize=(1.6, 1.6))
     ax = fig.add_axes((0, 0, 1, 1))
-    ax.pie(values, colors=[color_for(i) for i in range(len(values))], startangle=90, counterclock=False,
+    ax.pie(values, colors=[row.get("color") or color_for(i) for i, row in enumerate(rows)], startangle=90, counterclock=False,
            wedgeprops={"width": 0.36, "edgecolor": SURFACE, "linewidth": 1.5})
     ax.set_aspect("equal")
     return _to_data_uri(fig)

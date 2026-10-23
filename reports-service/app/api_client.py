@@ -9,6 +9,10 @@ import httpx
 PAGE_SIZE = 100
 
 
+def _unavailable() -> "ApiError":
+    return ApiError(502, "API indisponível", "Não foi possível consultar a API do Tana Stock.")
+
+
 class ApiError(Exception):
     def __init__(self, status: int, title: str, detail: str):
         super().__init__(f"{status} {title}: {detail}")
@@ -34,7 +38,7 @@ class TanaApiClient:
             raise ApiError(504, "API demorou a responder",
                            "A API do Tana Stock demorou demais para responder. Tente novamente em instantes.") from exc
         except httpx.TransportError as exc:
-            raise ApiError(502, "API indisponível", "Não foi possível consultar a API do Tana Stock.") from exc
+            raise _unavailable() from exc
 
         if response.status_code in (401, 403):
             title, detail = "Acesso negado", "Sem permissão para acessar este recurso."
@@ -46,9 +50,29 @@ class TanaApiClient:
                 pass
             raise ApiError(response.status_code, title, detail)
         if response.status_code >= 400:
-            raise ApiError(502, "API indisponível", "Não foi possível consultar a API do Tana Stock.")
+            raise _unavailable()
         # Decimal evita perder precisão em valores monetários
-        return json.loads(response.text, parse_float=Decimal)
+        try:
+            return json.loads(response.text, parse_float=Decimal)
+        except ValueError as exc:
+            raise _unavailable() from exc
+
+    def _page(self, path: str, params: dict) -> tuple[list, int]:
+        """Uma página de resultados: o conteúdo e o total de páginas."""
+        body = self._get(path, params)
+        try:
+            return body["content"], body["page"]["totalPages"]
+        except (KeyError, TypeError) as exc:
+            raise _unavailable() from exc
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "TanaApiClient":
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.close()
 
     def me(self) -> dict:
         return self._get("/api/auth/me")
@@ -63,10 +87,10 @@ class TanaApiClient:
         items: list[dict] = []
         number = 0
         while True:
-            body = self._get("/api/products", {"status": status, "size": PAGE_SIZE, "page": number})
-            items.extend(body["content"])
+            content, total_pages = self._page("/api/products", {"status": status, "size": PAGE_SIZE, "page": number})
+            items.extend(content)
             number += 1
-            if number >= body["page"]["totalPages"]:
+            if number >= total_pages:
                 return items
 
     def inventory(self) -> list[dict]:
@@ -79,14 +103,14 @@ class TanaApiClient:
         items: list[dict] = []
         number = 0
         while True:
-            body = self._get("/api/movements", {
+            content, total_pages = self._page("/api/movements", {
                 "from": start.isoformat(), "to": end.isoformat(),
                 "size": PAGE_SIZE, "sort": "createdAt,desc", "page": number,
             })
-            for item in body["content"]:
+            for item in content:
                 if len(items) >= limit:
                     return items, True
                 items.append(item)
             number += 1
-            if number >= body["page"]["totalPages"]:
+            if number >= total_pages:
                 return items, False

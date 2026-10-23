@@ -178,3 +178,46 @@ def test_charts_return_svg_data_uri_or_none_when_empty():
 
 def test_limits():
     assert (reports.SUMMARY_MAX_ALERTS, reports.SUMMARY_MAX_CATEGORIES, reports.FULL_MAX_MOVEMENTS) == (15, 5, 5000)
+
+
+def test_full_category_swatches_match_their_own_slice(fake_api):
+    fake_api.products = many_products(fake_api, 8, categories=8, quantity=10)
+
+    context = reports.build_summary_context(fake_api.client(), NOW, ZONE, full=True)
+    colors = [row["color"] for row in context["categories"]]
+
+    assert len(context["categories"]) == 8
+    assert "Outras" not in [row["category"] for row in context["categories"]]
+    assert len(set(colors)) == 8
+    assert charts.OTHER_COLOR not in colors
+
+
+def test_summary_keeps_other_color_for_outras(fake_api):
+    fake_api.products = many_products(fake_api, 8, categories=8, quantity=10)
+
+    context = reports.build_summary_context(fake_api.client(), NOW, ZONE)
+
+    assert context["categories"][-1]["category"] == "Outras"
+    assert context["categories"][-1]["color"] == charts.OTHER_COLOR
+
+
+def test_hidden_alerts_singular(fake_api):
+    fake_api.products = many_products(fake_api, 16)
+
+    _, text = summary(fake_api)
+
+    assert "e mais 1 produto com alerta" in flat(text)
+
+
+def test_unknown_enum_values_fall_back_to_raw_value(fake_api):
+    fake_api.products[3]["stockStatus"] = "DISCONTINUED"
+    fake_api.movements[0]["type"] = "TRANSFER"
+    fake_api.routes["/api/products"] = lambda request: {
+        "content": [fake_api.products[3]] if request.url.params["status"] == "OUT_OF_STOCK" else [],
+        "page": {"size": 100, "number": 0, "totalElements": 1, "totalPages": 1},
+    }
+
+    _, text = full(fake_api)
+
+    assert "DISCONTINUED" in text
+    assert "TRANSFER" in text

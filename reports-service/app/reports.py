@@ -44,15 +44,15 @@ def group_categories(rows: list[dict], limit: int | None) -> list[dict]:
     return [*rows[:limit], other]
 
 
-def _with_colors(rows: list[dict]) -> list[dict]:
-    return [{**row, "color": charts.color_for(i)} for i, row in enumerate(rows)]
+def _with_colors(rows: list[dict], *, grouped: bool) -> list[dict]:
+    return [{**row, "color": charts.color_for(i, grouped=grouped)} for i, row in enumerate(rows)]
 
 
 def _alert_row(product: dict) -> dict:
     status = product["stockStatus"]
     return {
         "name": product["name"], "sku": product["sku"], "quantity": product["quantity"],
-        "min_stock": product["minStock"], "status": STATUS_LABELS[status], "out": status == "OUT_OF_STOCK",
+        "min_stock": product["minStock"], "status": STATUS_LABELS.get(status, status), "out": status == "OUT_OF_STOCK",
     }
 
 
@@ -66,8 +66,9 @@ def build_summary_context(client: TanaApiClient, now: datetime, zone: ZoneInfo, 
     shown_alerts = alerts if full else alerts[:SUMMARY_MAX_ALERTS]
 
     by_category = summary["valueByCategory"]
-    chart_rows = group_categories(by_category, SUMMARY_MAX_CATEGORIES)
-    table_rows = by_category if full else chart_rows
+    # O Completo lista e desenha todas as categorias, cada uma com a própria cor; o Resumo agrupa em "Outras"
+    category_rows = _with_colors(
+        by_category if full else group_categories(by_category, SUMMARY_MAX_CATEGORIES), grouped=not full)
 
     return {
         "full": full,
@@ -80,8 +81,8 @@ def build_summary_context(client: TanaApiClient, now: datetime, zone: ZoneInfo, 
             "value": summary["totalValue"],
             "alerts": summary["lowStockProducts"] + summary["outOfStockProducts"],
         },
-        "categories": _with_colors(table_rows),
-        "category_chart": charts.category_donut(chart_rows),
+        "categories": category_rows,
+        "category_chart": charts.category_donut(category_rows),
         "top_products": top,
         "top_chart": charts.top_products_bars(top),
         "alerts": [_alert_row(p) for p in shown_alerts],
@@ -105,7 +106,7 @@ def _movement_row(movement: dict, zone: ZoneInfo) -> dict:
     return {
         "date": formatting.datetime_br(formatting.parse_instant(movement["createdAt"]), zone),
         "product": movement["product"]["name"],
-        "type": MOVEMENT_LABELS[movement["type"]],
+        "type": MOVEMENT_LABELS.get(movement["type"], movement["type"]),
         "entry": movement["type"] == "ENTRY",
         "quantity": movement["quantity"],
         "balance": movement["newQuantity"],
