@@ -68,6 +68,8 @@ public class SecurityConfig {
         cors.setAllowedOrigins(allowedOrigins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
         cors.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE));
+        // Sem isso o navegador esconde o nome do arquivo das exportações CSV/PDF
+        cors.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", cors);

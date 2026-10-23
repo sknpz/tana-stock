@@ -1,5 +1,8 @@
 package io.github.sknpz.tana.supplier;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import io.github.sknpz.tana.product.ProductRepository;
+import io.github.sknpz.tana.shared.csv.CsvWriter;
 import io.github.sknpz.tana.shared.exception.ConflictException;
 import io.github.sknpz.tana.shared.exception.ResourceNotFoundException;
 import io.github.sknpz.tana.shared.validation.Cnpj;
@@ -33,6 +37,24 @@ public class SupplierService {
         return suppliers.stream()
                 .map(s -> SupplierResponse.from(s, productCounts.getOrDefault(s.getId(), 0L)))
                 .toList();
+    }
+
+    /** Escreve o CSV dos fornecedores filtrados; a lista é pequena e já vem carregada por {@link #list}. */
+    @Transactional(readOnly = true)
+    public void exportCsv(String search, OutputStream out) {
+        try (CsvWriter csv = CsvWriter.open(out)) {
+            csv.row("Nome", "CNPJ", "Telefone", "E-mail", "Endereço", "Produtos vinculados");
+            for (SupplierResponse supplier : list(search)) {
+                csv.row(CsvWriter.text(supplier.name()),
+                        Cnpj.format(supplier.cnpj()),
+                        CsvWriter.text(supplier.phone()),
+                        CsvWriter.text(supplier.email()),
+                        CsvWriter.text(supplier.address()),
+                        String.valueOf(supplier.activeProducts()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Transactional(readOnly = true)
