@@ -297,7 +297,38 @@
     </div>
   </div>
 
+  <!-- Modal Gerar PDF -->
+  <div class="modal" id="pdfModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Gerar PDF</h3>
+        <button class="close-btn" id="closePdfModal">×</button>
+      </div>
+      <form id="pdfForm">
+        <div class="form-error" role="alert" hidden></div>
+        <div class="form-group">
+          <label class="radio-option"><input type="radio" name="kind" value="summary" checked> Resumo (1 página)</label>
+          <label class="radio-option"><input type="radio" name="kind" value="full"> Completo (inventário e movimentações do período)</label>
+        </div>
+        <div class="form-row" id="pdfDates" hidden>
+          <div class="form-group">
+            <label class="form-label">De</label>
+            <input type="date" class="form-input" name="from" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Até</label>
+            <input type="date" class="form-input" name="to" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelPdf">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Gerar PDF</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="api.js"></script>
   <script src="script.js"></script>
 </body>
-</html>
+</html>

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "_sections.html" as sections %}
+{% block title %}Relatório completo{% endblock %}
+{% block body_class %}full{% endblock %}
+{% block content %}
+{{ sections.overview(report) }}
+{{ sections.inventory(report) }}
+{{ sections.movements(report) }}
+{% endblock %}

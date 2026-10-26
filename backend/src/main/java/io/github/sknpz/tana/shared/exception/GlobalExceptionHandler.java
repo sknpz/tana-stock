@@ -47,6 +47,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Regra de negócio violada", ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidFieldException.class)
+    ProblemDetail handleInvalidField(InvalidFieldException ex) {
+        ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "Dados inválidos", "Um ou mais campos são inválidos.");
+        body.setProperty("errors", Map.of(ex.field(), String.valueOf(ex.getMessage())));
+        return body;
+    }
+
     // Login recusado (senha errada, usuário desativado): a mensagem já é adequada ao usuário
     @ExceptionHandler({BadCredentialsException.class, DisabledException.class})
     ProblemDetail handleLoginRejected(AuthenticationException ex) {

@@ -30,10 +30,26 @@
 
 The application provides a complete dashboard with inventory statistics, product and supplier management, stock movement history, reports, low-stock alerts, and theme customization.
 
-The project has two parts:
+The project has three parts:
 
 * **Front-end** (`index.html`, `style.css`, `script.js`, `api.js`): vanilla JavaScript that runs in the browser and reads and writes all data through the API.
-* **REST API** (`backend/`): Java 21 + Spring Boot, persisting data in PostgreSQL and enforcing the business rules on the server.
+* **REST API** (`backend/`): Java 21 + Spring Boot, persisting data in PostgreSQL and enforcing the business rules on the server. It also exports the CSV files.
+* **PDF report service** (`reports-service/`): Python 3.12 + FastAPI. It renders the PDF reports and has no database of its own: it forwards the user's token to the API and formats what the API returns.
+
+### 🧭 Why two back-ends?
+
+The choice was made piece by piece, on merit:
+
+* **CSV stays in the Java API.** The data, the filters (`ProductSpecifications`), the security and the Testcontainers tests are already there. The file is streamed straight from the database, so a Python service would only add a second wake-up delay and paginate through the API for nothing.
+* **PDF goes to a separate Python service.** Layout with charts is where the Python ecosystem is strongest (HTML/CSS templates rendered by WeasyPrint, charts by matplotlib), and moving the rendering out keeps heavy work away from the 512 MB JVM that serves the API.
+* **The API remains the only owner of data and rules.** The Python service never touches the database and doesn't know the JWT secret: it forwards the `Authorization` header, and the API decides about invalid tokens, deactivated users and permissions.
+
+```text
+Browser (GitHub Pages)
+ ├── CSV ──► Java API      GET /api/{products|movements|suppliers}/export.csv   (Bearer token)
+ └── PDF ──► Python service GET /reports/{summary|full}.pdf                      (Bearer token)
+                └── forwards the same token ──► Java API (data + authorization)
+```
 
 ## ✨ Features
 
@@ -83,6 +99,7 @@ The project has two parts:
 * Store movement date and time
 * Track previous and new quantities
 * Filter movements by entry or exit
+* Filter movements by period (from / to dates, in the company time zone)
 
 ### 📈 Reports
 
@@ -91,6 +108,15 @@ The project has two parts:
 * Number of stock movements
 * Inventory value grouped by category
 * Percentage distribution of inventory value
+
+### 📤 Exports and PDF reports
+
+* **Export CSV** button on Products, Movements and Suppliers, using exactly the filters currently on screen
+* CSV files open correctly in Excel in Portuguese (see [Business rules](#business-rules))
+* **Gerar PDF** button on Reports, in two formats:
+  * **Resumo:** one page with the indicators, value by category (donut chart), the most valuable products and the stock alerts
+  * **Completo:** the Resumo plus the full inventory and the stock movements of a chosen period (up to 366 days), with entry and exit totals
+* A notice appears while the free-plan servers wake up, and the PDF button is disabled while the file is generated
 
 ### ⚠️ Inventory Alerts
 
@@ -130,6 +156,11 @@ The project has two parts:
 | LocalStorage | Theme preference                       |
 | Google Fonts | Inter font family                      |
 | Java 21 + Spring Boot 4 | REST API (`backend/`) |
+| Jackson CSV | Streaming CSV export |
+| Python 3.12 + FastAPI | PDF report service (`reports-service/`) |
+| WeasyPrint + Jinja2 | HTML/CSS templates rendered to PDF |
+| matplotlib | Charts inside the PDF |
+| pytest + ruff | Tests and lint of the Python service |
 | Spring Data JPA / Hibernate | Data access |
 | PostgreSQL   | Relational database (see [Data Model](#-data-model)) |
 | Flyway       | Versioned database migrations |
@@ -151,7 +182,7 @@ tana-stock/
 ├── script.js             # Pages, modals and rendering
 ├── api.js                # HTTP client for the REST API
 ├── logo.svg              # Logo and favicon
-├── render.yaml           # Render Blueprint (API deployment)
+├── render.yaml           # Render Blueprint (API and report service deployment)
 ├── .github/workflows/    # CI (GitHub Actions)
 ├── backend/              # REST API (Java + Spring Boot)
 │   ├── Dockerfile        # API image used in production
@@ -173,6 +204,11 @@ tana-stock/
 │       │       ├── migration/ # Flyway migrations (database schema)
 │       │       └── seed/      # Sample data for development
 │       └── test/          # Unit and integration tests (see Tests below)
+├── reports-service/      # PDF report service (Python + FastAPI)
+│   ├── Dockerfile        # Service image used in production
+│   ├── app/              # Routes, API client, charts, pt-BR formatting, Jinja2 templates
+│   ├── tests/            # pytest (mocked API, real PDF rendering)
+│   └── requirements*.txt
 ├── LICENSE               # MIT License
 └── README.md             # Project documentation
 ```
@@ -241,7 +277,29 @@ To run the API in Docker instead, with the same image used in production:
 docker compose --profile api up -d --build   # PostgreSQL + API on http://localhost:8080
 ```
 
-### 4. Run the front-end
+### 4. Run the PDF report service (optional)
+
+Only needed to generate PDFs; the rest of the application, including the CSV export, works without it. Requirements: **Python 3.12** and the native libraries WeasyPrint uses (Pango and HarfBuzz; on Debian/Ubuntu: `libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core`).
+
+```bash
+cd reports-service
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+API_BASE_URL=http://localhost:8080 uvicorn app.main:app --port 8000
+```
+
+| Environment variable | Default | Description |
+| --- | --- | --- |
+| `API_BASE_URL` | `http://localhost:8080` | Address of the Java API (use `http://localhost:8081` if you ran it with `PORT=8081`) |
+| `CORS_ALLOWED_ORIGINS` | Live Server + GitHub Pages | Front-end origins allowed to call the service |
+| `APP_ZONE_ID` | `America/Sao_Paulo` | Company time zone (dates and times in the PDF) |
+| `API_TIMEOUT_SECONDS` | `90` | How long to wait for the API, long enough for it to wake up on the free plan |
+| `PORT` | `8000` | HTTP port (used by the Docker image) |
+
+When opened from `localhost`, the front-end calls the service at `http://localhost:8000`; anywhere else, at `https://tana-stock-reports.onrender.com`. To point it somewhere else, define `window.TANA_REPORTS_URL` before `api.js` is loaded, the same way as `window.TANA_API_URL` below.
+
+### 5. Run the front-end
 
 Serve the project folder on port **5500**, for example with the **Live Server** extension for Visual Studio Code, or with:
 
@@ -282,10 +340,23 @@ Every endpoint except `POST /api/auth/login` requires the header `Authorization:
 | `GET` | `/api/products?search=&status=&categoryId=&supplierId=&page=&size=&sort=` | Paginated product list with filters |
 | `GET` / `POST` / `PUT` / `DELETE` | `/api/products[/{id}]` | Product CRUD (delete is a soft delete) |
 | `POST` | `/api/products/{id}/movements` | Register a stock entry (`ENTRY`) or exit (`EXIT`) |
-| `GET` | `/api/movements?type=&productId=` | Paginated movement history |
+| `GET` | `/api/movements?type=&productId=&from=&to=&page=&size=&sort=` | Paginated movement history; `from`/`to` (`yyyy-MM-dd`, `to` inclusive, company time zone) filter by period |
+| `GET` | `/api/products/export.csv?search=&status=&categoryId=&supplierId=` | Products as CSV (`produtos-YYYY-MM-DD.csv`), same filters as the list |
+| `GET` | `/api/movements/export.csv?type=&productId=&from=&to=` | Movements as CSV (`movimentacoes-YYYY-MM-DD.csv`), newest first |
+| `GET` | `/api/suppliers/export.csv?search=` | Suppliers as CSV (`fornecedores-YYYY-MM-DD.csv`) |
 | `GET` | `/api/reports/summary` | Dashboard indicators and value by category |
 | `GET` | `/api/reports/top-products?limit=` | Products with the highest stock value (quantity × unit price), 1 to 50 |
+| `GET` | `/api/reports/inventory` | All active products, not paginated, ordered by name (used by the PDF service) |
+| `GET` | `/api/reports/movements-summary?from=&to=` | Count and units of entries and exits in the period (both dates required) |
 | `GET` | `/actuator/health` | Health check used by the hosting platform (public, no details) |
+
+The PDF service (`reports-service/`, port `8000`) has its own, much smaller API. The two reports require the same `Authorization: Bearer <token>`; errors use Problem Details with `application/problem+json`.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Public health check (also used by the front-end to wake the service up) |
+| `GET` | `/reports/summary.pdf` | One-page summary (`relatorio-resumo-YYYY-MM-DD.pdf`) |
+| `GET` | `/reports/full.pdf?from=&to=` | Full report (`relatorio-completo-YYYY-MM-DD-a-YYYY-MM-DD.pdf`). Without dates, uses the current month until today; `from` after `to` or more than 366 days → `400` |
 
 ### Business rules
 
@@ -298,6 +369,10 @@ Every endpoint except `POST /api/auth/login` requires the header `Authorization:
 * **Passwords are stored with BCrypt.** The login answers "E-mail ou senha inválidos." for both an unknown e-mail and a wrong password, and takes the same time in both cases, so it doesn't reveal which e-mails are registered.
 * **There is always an active administrator.** Administrators can't deactivate themselves or remove their own ADMIN profile.
 * **Users are deactivated, not deleted**, so the movement history keeps pointing to who registered each movement.
+* **CSV files are made for Excel in Portuguese.** They start with a UTF-8 BOM (so accents are read correctly), use `;` as separator and `\r\n` line endings, write numbers with a decimal comma and no thousands separator (`1234,50`, which Excel recognizes as a number) and dates as `dd/MM/yyyy HH:mm` in the company time zone.
+* **CSV injection is prevented.** Free-text fields that start with `=`, `+`, `-`, `@`, a tab or `\r` get a `'` in front, so a product named `=HYPERLINK(...)` can't run as a formula when the file is opened ([OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection)). The files are streamed from the database, with no row limit.
+* **Period filters are inclusive and use the company time zone** (`America/Sao_Paulo`): `to` covers the whole last day. `from` after `to` → `400` with the error on the `to` field.
+* **The PDF service doesn't repeat the API's rules.** Invalid tokens, deactivated users and permissions are decided by the Java API, and the service returns its `401`/`403`; if the API is down or too slow, the service answers `502`/`504`. The full report shows at most 2,000 movements (the most recent) and says so; the entry and exit totals still cover the whole period.
 * **Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (Problem Details)**, with per-field messages on validation errors:
 
 ```json
@@ -319,6 +394,15 @@ cd backend
 ./mvnw verify
 ```
 
+And for the PDF service:
+
+```bash
+cd reports-service
+pip install -r requirements-dev.txt
+pytest -q          # tests
+ruff check .       # lint
+```
+
 Docker must be running: the integration tests start a temporary PostgreSQL with Testcontainers, so they run against the same database engine as production, including the Flyway migrations and the `CHECK` constraints.
 
 | Kind | What it covers |
@@ -326,6 +410,8 @@ Docker must be running: the integration tests start a temporary PostgreSQL with 
 | **Unit** (plain JUnit) | CNPJ validation (numeric, alphanumeric, punctuation, wrong check digits), stock status, the product balance rule and the first-admin bootstrap |
 | **Integration** (MockMvc + Testcontainers) | Every endpoint through the full HTTP stack, including Spring Security: validation errors, conflicts, soft delete, filters and pagination, reports, users and profiles, 401/403, CORS |
 | **Concurrency** | 20 simultaneous exits against a product with 7 units: exactly 7 succeed |
+| **CSV and period** (MockMvc + Testcontainers) | The three CSV files (BOM, header, formatted values, filters, 401), formula injection, quote and `;` escaping, inclusive period limits, the inventory and movements-summary reports |
+| **Python service** (pytest) | pt-BR formatting, token forwarding, 401/403/502 handling, period validation, movement pagination and the 2,000 limit, and PDFs rendered for real (starts with `%PDF`, page count, extracted text) with the Java API mocked |
 
 All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github/sknpz/tana/IntegrationTest.java) and share one Spring context and one database container. Each test creates its own data with unique names instead of relying on an empty database.
 
@@ -337,6 +423,7 @@ All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github
 
 * **API:** `./mvnw verify` on Java 21 (tests + coverage check), with a coverage summary on the run page and the test and coverage reports available as artifacts.
 * **Front-end:** syntax check of `api.js` and `script.js`.
+* **Report service:** `ruff check` and `pytest -q` on Python 3.12, with the WeasyPrint system libraries installed on the runner.
 
 ---
 
@@ -346,6 +433,7 @@ All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github
 | --- | --- | --- |
 | Front-end | [GitHub Pages](https://sknpz.github.io/tana-stock/) | Automatically, on every push to `main` |
 | API | [Render](https://tana-stock-api.onrender.com/swagger-ui.html) (free plan, Docker) | [`render.yaml`](render.yaml) Blueprint: builds [`backend/Dockerfile`](backend/Dockerfile) after the CI passes, only when something under `backend/` changes |
+| PDF service | Render (free plan, Docker), `https://tana-stock-reports.onrender.com` | Second service in the same [`render.yaml`](render.yaml) Blueprint: builds [`reports-service/Dockerfile`](reports-service/Dockerfile) after the CI passes, only when something under `reports-service/` changes |
 | Database | [Supabase](https://supabase.com) (PostgreSQL) | Flyway creates and updates the tables when the API starts |
 
 ### First deployment
@@ -357,11 +445,13 @@ All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github
    * `ADMIN_EMAIL` / `ADMIN_PASSWORD`: the first administrator (only used while the database has no users)
 
    `JWT_SECRET` is generated by Render, and the CORS origin is already set to GitHub Pages. The Blueprint also sets a Flyway baseline at version 0, because a new Supabase project's `public` schema already contains Supabase's own objects; Flyway then runs every migration from V1.
-3. Open the front-end on GitHub Pages, log in as the administrator, change the password and create the other users. `ADMIN_PASSWORD` stays readable in Render's dashboard, so changing the password (or deleting the `ADMIN_*` variables, which are only used while there are no users) is recommended.
+3. The same Blueprint also creates **`tana-stock-reports`**, the PDF service, with `API_BASE_URL` and `CORS_ALLOWED_ORIGINS` already set and nothing to fill in. The front-end expects it at `https://tana-stock-reports.onrender.com`. If Render says the name is taken, rename the service in `render.yaml` and change the URL in `api.js` (or define `window.TANA_REPORTS_URL`). Until the service exists, only the PDF button shows "O serviço de relatórios está indisponível no momento"; everything else, including CSV, keeps working.
+4. Open the front-end on GitHub Pages, log in as the administrator, change the password and create the other users. `ADMIN_PASSWORD` stays readable in Render's dashboard, so changing the password (or deleting the `ADMIN_*` variables, which are only used while there are no users) is recommended.
 
 ### Free plan behavior
 
-* The API **sleeps after 15 minutes without requests**. The next request wakes it up, which takes about a minute (about 70 seconds measured on the first deploy); meanwhile the page shows a notice instead of looking frozen.
+* Both services (API and PDF) **sleep after 15 minutes without requests**. The next request wakes them up, which takes about a minute (about 70 seconds measured on the first deploy for the API); meanwhile the page shows a notice instead of looking frozen. The front-end wakes the PDF service when the Reports page opens, and the PDF service waits for the API to wake up (up to `API_TIMEOUT_SECONDS`).
+* The full PDF report shows at most the 2,000 most recent movements of the period because of the 512 MB memory limit; the totals still cover the whole period.
 * The image is tuned for 512 MB of memory (heap limited to the container, Serial GC, faster JIT startup). Locally, with the same limits, it uses about 300 MB.
 * Every table has Row Level Security enabled without policies ([`V3`](backend/src/main/resources/db/migration/V3__enable_row_level_security.sql)), which blocks Supabase's automatic Data API. The API connects as the tables' owner and is not affected.
 
@@ -482,7 +572,7 @@ The project is evolving from a browser-only app into a full-stack application:
 
 Ideas for later:
 
-* [ ] CSV export and PDF reports
+* [x] CSV export and PDF reports
 * [ ] Interactive dashboard charts
 * [x] Responsive menu and tables for phones and tablets
 * [ ] Login rate limiting (throttle repeated wrong passwords)

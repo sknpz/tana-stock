@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# Aviso de ambiente: sem a libharfbuzz-subset0 instalada, o WeasyPrint usa o fontTools para os subconjuntos de fonte
+filterwarnings = ["ignore:HarfBuzz-Subset will be required:DeprecationWarning",
+    # Aviso do TestClient do Starlette, que prefere o httpx2; o cliente da API usa o httpx em produção
+    "ignore:Using `httpx` with `starlette.testclient`:starlette.exceptions.StarletteDeprecationWarning"]
+
+[tool.ruff]
+line-length = 120

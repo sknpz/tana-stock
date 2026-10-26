@@ -1,8 +1,11 @@
 package io.github.sknpz.tana.product;
 
+import java.io.IOException;
 import java.net.URI;
+import java.time.ZoneId;
 
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -18,8 +21,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import io.github.sknpz.tana.shared.csv.CsvResponses;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @Tag(name = "Produtos")
@@ -28,9 +34,11 @@ import jakarta.validation.Valid;
 public class ProductController {
 
     private final ProductService productService;
+    private final ZoneId zoneId;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, @Value("${app.zone-id}") ZoneId zoneId) {
         this.productService = productService;
+        this.zoneId = zoneId;
     }
 
     @GetMapping
@@ -41,6 +49,18 @@ public class ProductController {
             @RequestParam(required = false) Long supplierId,
             @ParameterObject @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return productService.list(search, status, categoryId, supplierId, pageable);
+    }
+
+    @Operation(summary = "Exporta os produtos filtrados em CSV")
+    @GetMapping("/export.csv")
+    public void exportCsv(
+            @Parameter(description = "Busca por nome ou SKU") @RequestParam(required = false) String search,
+            @RequestParam(required = false) StockStatus status,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long supplierId,
+            HttpServletResponse response) throws IOException {
+        CsvResponses.prepare(response, "produtos", zoneId);
+        productService.exportCsv(search, status, categoryId, supplierId, response.getOutputStream());
     }
 
     @GetMapping("/{id}")

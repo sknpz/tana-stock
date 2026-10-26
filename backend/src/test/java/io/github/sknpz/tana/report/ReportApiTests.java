@@ -1,6 +1,7 @@
 package io.github.sknpz.tana.report;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.github.sknpz.tana.IntegrationTest;
 
@@ -18,6 +21,9 @@ import io.github.sknpz.tana.IntegrationTest;
  * depois de criar os dados do teste, em vez de esperar valores absolutos.
  */
 class ReportApiTests extends IntegrationTest {
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private Map<String, Object> summary() throws Exception {
         return read(apiGet("/api/reports/summary").andExpect(status().isOk()), "$");
@@ -95,5 +101,89 @@ class ReportApiTests extends IntegrationTest {
         apiGet("/api/reports/top-products?limit=0").andExpect(jsonPath("$.length()").value(1));
         List<Object> all = read(apiGet("/api/reports/top-products?limit=500"), "$");
         assertThat(all).hasSizeLessThanOrEqualTo(50);
+    }
+
+    private void movement(long productId, String type, int quantity) throws Exception {
+        apiPost("""
+                {"type": "%s", "quantity": %d}
+                """.formatted(type, quantity), "/api/products/{id}/movements", productId)
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void inventoryListsOnlyActiveProductsSortedByName() throws Exception {
+        String prefix = unique("Inv");
+        createProduct(prefix + "-B", "2.00", 3, 1);
+        createProduct(prefix + "-A", "1.00", 5, 1);
+        long removed = createProduct(prefix + "-C", "1.00", 1, 1);
+        apiDelete("/api/products/{id}", removed).andExpect(status().isNoContent());
+
+        List<Map<String, Object>> ours = read(apiGet("/api/reports/inventory").andExpect(status().isOk()),
+                "$[?(@.name =~ /" + prefix + ".*/)]");
+        assertThat(ours).extracting(p -> p.get("name")).containsExactly(prefix + "-A", prefix + "-B");
+        assertThat(decimal(ours.get(1).get("totalValue"))).isEqualByComparingTo("6.00");
+
+        List<String> names = read(apiGet("/api/reports/inventory"), "$[*].name");
+        assertThat(names).doesNotContain(prefix + "-C");
+    }
+
+    @Test
+    void movementsSummaryCountsEntriesAndExitsInPeriod() throws Exception {
+        // Período antigo e isolado: as movimentações dos outros testes ficam em 2026
+        long id = createProduct(unique("Período"), "1.00", 10, 1); // entrada de 10
+        movement(id, "EXIT", 3);
+        movement(id, "EXIT", 2);
+        movement(id, "ENTRY", 5);
+        movement(id, "ENTRY", 7); // esta fica fora do período
+        jdbc.update("UPDATE stock_movement SET created_at = '2001-03-10T15:00:00Z'::timestamptz WHERE product_id = ?",
+                id);
+        jdbc.update("""
+                UPDATE stock_movement SET created_at = '2001-05-01T15:00:00Z'::timestamptz
+                WHERE product_id = ? AND quantity = 7
+                """, id);
+
+        apiGet("/api/reports/movements-summary?from=2001-03-01&to=2001-03-31")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value("2001-03-01"))
+                .andExpect(jsonPath("$.to").value("2001-03-31"))
+                .andExpect(jsonPath("$.entries.count").value(2))
+                .andExpect(jsonPath("$.entries.units").value(15))
+                .andExpect(jsonPath("$.exits.count").value(2))
+                .andExpect(jsonPath("$.exits.units").value(5));
+    }
+
+    @Test
+    void movementsSummaryEmptyPeriodReturnsZeros() throws Exception {
+        apiGet("/api/reports/movements-summary?from=1990-01-01&to=1990-01-31")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries.count").value(0))
+                .andExpect(jsonPath("$.entries.units").value(0))
+                .andExpect(jsonPath("$.exits.count").value(0))
+                .andExpect(jsonPath("$.exits.units").value(0));
+    }
+
+    @Test
+    void movementsSummaryRequiresFromAndTo() throws Exception {
+        apiGet("/api/reports/movements-summary?to=2026-01-31")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").exists());
+        apiGet("/api/reports/movements-summary?from=2026-01-01")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void movementsSummaryFromAfterToReturns400() throws Exception {
+        apiGet("/api/reports/movements-summary?from=2026-02-01&to=2026-01-01")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.to").value("A data final não pode ser anterior à inicial."));
+    }
+
+    @Test
+    void newReportEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/reports/inventory")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/reports/movements-summary?from=2026-01-01&to=2026-01-31"))
+                .andExpect(status().isUnauthorized());
     }
 }

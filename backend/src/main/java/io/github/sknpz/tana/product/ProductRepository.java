@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,11 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Override
     @EntityGraph(attributePaths = {"category", "supplier"})
     Page<Product> findAll(Specification<Product> spec, Pageable pageable);
+
+    // Versão sem paginação (inventário completo), também sem N+1
+    @Override
+    @EntityGraph(attributePaths = {"category", "supplier"})
+    List<Product> findAll(Specification<Product> spec, Sort sort);
 
     @EntityGraph(attributePaths = {"category", "supplier"})
     Optional<Product> findByIdAndActiveTrue(Long id);

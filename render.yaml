@@ -1,4 +1,4 @@
-# Blueprint do Render: no painel, New → Blueprint → este repositório cria a API já configurada.
+# Blueprint do Render: no painel, New → Blueprint → este repositório cria a API e o serviço de relatórios já configurados.
 # Os valores marcados com sync: false são pedidos pelo painel na criação e nunca ficam no repositório.
 services:
   - type: web
@@ -47,3 +47,25 @@ services:
       # O Render atende em HTTPS e repassa para a API em HTTP: faz o Swagger gerar links https
       - key: SERVER_FORWARD_HEADERS_STRATEGY
         value: framework
+
+  # Serviço de relatórios em PDF (Python). Não acessa o banco: repassa o token do usuário para a API.
+  # Se o nome tana-stock-reports estiver ocupado no Render, troque-o aqui e a URL em api.js (ou use window.TANA_REPORTS_URL).
+  - type: web
+    name: tana-stock-reports
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerContext: ./reports-service
+    dockerfilePath: ./reports-service/Dockerfile
+    healthCheckPath: /health
+    # Só publica depois que o CI passar, e só quando algo do serviço mudar
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - reports-service/**
+    envVars:
+      - key: API_BASE_URL
+        value: https://tana-stock-api.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://sknpz.github.io
