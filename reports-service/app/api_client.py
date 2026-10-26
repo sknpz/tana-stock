@@ -3,6 +3,7 @@
 import json
 from datetime import date
 from decimal import Decimal
+from typing import Self
 
 import httpx
 
@@ -68,7 +69,7 @@ class TanaApiClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "TanaApiClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc_info) -> None:
