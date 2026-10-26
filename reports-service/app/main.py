@@ -1,5 +1,6 @@
 """Aplicação FastAPI do serviço de relatórios: repassa o JWT do usuário para a API Java e devolve PDFs."""
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Annotated
@@ -17,6 +18,8 @@ from app.config import Settings, load_settings
 
 MAX_PERIOD_DAYS = 366
 PROBLEM_JSON = "application/problem+json"
+HTTP_ERROR_DETAILS = {404: "Recurso não encontrado.", 405: "Método não permitido."}
+logger = logging.getLogger(__name__)
 
 
 class PeriodError(Exception):
@@ -64,6 +67,17 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
     clock = clock or (lambda: datetime.now(UTC))
     app = FastAPI(title="Tana Stock - Relatórios", docs_url=None, redoc_url=None, openapi_url=None)
 
+    # Fica por dentro do CORS (registrado antes dele): o handler de Exception do Starlette roda fora do
+    # CORSMiddleware, e a resposta 500 sairia sem os headers de CORS (o navegador mostraria erro de CORS).
+    @app.middleware("http")
+    async def unexpected_error(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.exception("Erro inesperado ao atender %s", request.url.path)
+            return _problem(500, "Erro interno",
+                            "Ocorreu um erro inesperado ao gerar o relatório. Tente novamente mais tarde.")
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -87,7 +101,7 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
 
     @app.exception_handler(StarletteHTTPException)
     def http_error(request: Request, exc: StarletteHTTPException):
-        return _problem(exc.status_code, "Erro na requisição", str(exc.detail))
+        return _problem(exc.status_code, "Erro na requisição", HTTP_ERROR_DETAILS.get(exc.status_code, str(exc.detail)))
 
     def new_client(authorization: str) -> TanaApiClient:
         return TanaApiClient(settings.api_base_url, authorization, settings.api_timeout_seconds, transport=transport)

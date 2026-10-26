@@ -5,6 +5,7 @@ import pytest
 from conftest import NOW, ZONE
 from fastapi.testclient import TestClient
 
+from app.api_client import TanaApiClient
 from app.config import Settings
 from app.main import PeriodError, create_app, resolve_period
 
@@ -172,3 +173,40 @@ def test_resolve_period_limit_is_366_days_inclusive():
         resolve_period(date(2025, 10, 21), date(2026, 10, 22), TODAY)  # 367 dias
 
     assert error.value.message == "O período pode ter no máximo 366 dias."
+
+
+def test_unexpected_error_returns_problem_json_with_cors(fake_api, monkeypatch):
+    def boom(*args, **kwargs):
+        raise KeyError("campo")
+
+    monkeypatch.setattr("app.reports.summary_pdf", boom)
+    settings = Settings(api_base_url="http://api.test", cors_allowed_origins=[FRONT], zone=ZONE,
+                        api_timeout_seconds=5.0)
+    app = create_app(settings, transport=fake_api.transport, clock=lambda: NOW)
+
+    response = TestClient(app, raise_server_exceptions=False).get(
+        "/reports/summary.pdf", headers={**AUTH, "Origin": FRONT})
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json() == {"title": "Erro interno", "status": 500,
+                               "detail": "Ocorreu um erro inesperado ao gerar o relatório. Tente novamente mais tarde."}
+    assert response.headers["access-control-allow-origin"] == FRONT
+
+
+def test_not_found_and_method_not_allowed_are_in_portuguese(client):
+    assert client.get("/nada").json()["detail"] == "Recurso não encontrado."
+    assert client.post("/health").json()["detail"] == "Método não permitido."
+
+
+def test_client_is_closed_per_request_even_on_error(client, fake_api, monkeypatch):
+    closed = []
+    original = TanaApiClient.close
+    monkeypatch.setattr(TanaApiClient, "close", lambda self: (closed.append(1), original(self))[1])
+
+    assert client.get("/reports/summary.pdf", headers=AUTH).status_code == 200
+    assert len(closed) == 1
+
+    fake_api.routes["/api/reports/summary"] = httpx.Response(403, json={})
+    assert client.get("/reports/summary.pdf", headers=AUTH).status_code == 403
+    assert len(closed) == 2

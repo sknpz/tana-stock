@@ -18,7 +18,8 @@ COPY app/ app/
 RUN useradd --system --no-create-home tana
 USER tana
 # Caches do matplotlib e do fontconfig em pastas com escrita para o usuário sem root
-ENV MPLCONFIGDIR=/tmp/matplotlib \
+ENV PYTHONUNBUFFERED=1 \
+    MPLCONFIGDIR=/tmp/matplotlib \
     XDG_CACHE_HOME=/tmp/cache
 
 EXPOSE 8000
