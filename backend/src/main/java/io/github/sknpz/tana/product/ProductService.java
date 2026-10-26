@@ -59,7 +59,7 @@ public class ProductService {
     /** Todos os produtos ativos, por nome, para o relatório em PDF. */
     @Transactional(readOnly = true)
     public List<ProductResponse> inventory() {
-        return productRepository.findAll(ProductSpecifications.matching(null, null, null, null), Sort.by("name"))
+        return productRepository.findAll(ProductSpecifications.matching(null, null, null, null), Sort.by("name", "id"))
                 .stream().map(ProductResponse::from).toList();
     }
 
@@ -69,7 +69,7 @@ public class ProductService {
         try (CsvWriter csv = CsvWriter.open(out);
                 Stream<Product> products = EntityStreams.stream(entityManager, Product.class,
                         ProductSpecifications.matching(search, status, categoryId, supplierId),
-                        Sort.by("name"), "category", "supplier")) {
+                        Sort.by("name", "id"), "category", "supplier")) {
             csv.row("SKU", "Produto", "Categoria", "Fornecedor", "Preço unitário", "Quantidade",
                     "Estoque mínimo", "Valor em estoque", "Situação");
             products.forEach(product -> csv.row(

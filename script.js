@@ -133,7 +133,11 @@
         if (isLatest()) render(data);
       } catch (error) {
         if (isLatest()) {
-          document.getElementById(containerId).innerHTML = emptyState('🔌', 'Não foi possível carregar os dados', errorMessage(error));
+          // Filtro inválido (400 com erros de campo) não é falha de conexão: aviso em vez do plugue
+          const invalidFilter = error.status === 400 && Object.keys(error.fieldErrors || {}).length > 0;
+          document.getElementById(containerId).innerHTML = invalidFilter
+            ? emptyState('⚠️', 'Filtro inválido', errorMessage(error))
+            : emptyState('🔌', 'Não foi possível carregar os dados', errorMessage(error));
         }
       }
     }

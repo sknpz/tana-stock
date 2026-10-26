@@ -66,7 +66,7 @@ public class StockMovementService {
                 period.startInclusive(zoneId), period.endExclusive(zoneId));
         try (CsvWriter csv = CsvWriter.open(out);
                 Stream<StockMovement> movements = EntityStreams.stream(entityManager, StockMovement.class, spec,
-                        Sort.by(Sort.Direction.DESC, "createdAt"), "product", "user")) {
+                        Sort.by(Sort.Direction.DESC, "createdAt", "id"), "product", "user")) {
             csv.row("Data/hora", "Tipo", "Produto", "SKU", "Quantidade", "Saldo anterior", "Saldo novo",
                     "Observações", "Usuário");
             movements.forEach(movement -> csv.row(

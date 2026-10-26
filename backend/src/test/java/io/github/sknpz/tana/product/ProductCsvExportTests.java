@@ -62,11 +62,14 @@ class ProductCsvExportTests extends IntegrationTest {
                  "categoryId": %d, "supplierId": %d}
                 """.formatted(name, sku, categoryId, supplierId), "/api/products").andExpect(status().isCreated());
 
+        LocalDate before = LocalDate.now(zone);
+
         ResultActions result = apiGet("/api/products/export.csv?search={s}", name)
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"produtos-" + LocalDate.now(zone) + ".csv\""));
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.anyOf(
+                        org.hamcrest.Matchers.is("attachment; filename=\"produtos-" + before + ".csv\""),
+                        org.hamcrest.Matchers.is("attachment; filename=\"produtos-" + LocalDate.now(zone) + ".csv\"")))); // cobre a virada da meia-noite
 
         assertThat(lines(result)).containsExactly(HEADER,
                 sku + ";" + name + ";" + category + ";" + supplier + ";12,50;3;5;37,50;Estoque baixo");

@@ -41,11 +41,14 @@ class SupplierCsvExportTests extends IntegrationTest {
                 """.formatted(unique("P"), unique("sku").toUpperCase(), id), "/api/products")
                 .andExpect(status().isCreated());
 
+        LocalDate before = LocalDate.now(zone);
+
         ResultActions result = apiGet("/api/suppliers/export.csv?search={s}", name)
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"fornecedores-" + LocalDate.now(zone) + ".csv\""));
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.anyOf(
+                        org.hamcrest.Matchers.is("attachment; filename=\"fornecedores-" + before + ".csv\""),
+                        org.hamcrest.Matchers.is("attachment; filename=\"fornecedores-" + LocalDate.now(zone) + ".csv\"")))); // cobre a virada da meia-noite
 
         assertThat(lines(result)).containsExactly(HEADER,
                 name + ";11.222.333/0001-81;1133334444;a@b.com;Rua A, 10;1");

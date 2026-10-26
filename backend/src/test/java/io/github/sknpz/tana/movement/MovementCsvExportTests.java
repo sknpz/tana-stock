@@ -57,11 +57,14 @@ class MovementCsvExportTests extends IntegrationTest {
         jdbc.update("UPDATE stock_movement SET created_at = ?::timestamptz WHERE id = ?",
                 "2026-03-05T15:30:00Z", movementId);
 
+        LocalDate before = LocalDate.now(zone);
+
         ResultActions result = apiGet("/api/movements/export.csv?productId={id}&type=EXIT", id)
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"movimentacoes-" + LocalDate.now(zone) + ".csv\""));
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.anyOf(
+                        org.hamcrest.Matchers.is("attachment; filename=\"movimentacoes-" + before + ".csv\""),
+                        org.hamcrest.Matchers.is("attachment; filename=\"movimentacoes-" + LocalDate.now(zone) + ".csv\"")))); // cobre a virada da meia-noite
 
         String expectedDate = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
                 .format(Instant.parse("2026-03-05T15:30:00Z").atZone(zone));

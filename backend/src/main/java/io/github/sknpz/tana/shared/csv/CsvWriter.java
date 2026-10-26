@@ -1,13 +1,11 @@
 package io.github.sknpz.tana.shared.csv;
 
 import java.io.Closeable;
-import java.io.Flushable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -21,7 +19,7 @@ import tools.jackson.dataformat.csv.CsvSchema;
  * Grava CSV no formato que o Excel brasileiro abre direto: BOM UTF-8, separador ";" e linhas
  * terminadas em CRLF. As linhas vão para a saída conforme chegam, sem montar o arquivo na memória.
  */
-public final class CsvWriter implements Closeable, Flushable {
+public final class CsvWriter implements Closeable {
 
     private static final CsvMapper MAPPER = CsvMapper.builder()
             // Sem isso o Jackson coloca aspas em qualquer texto com espaço, vírgula etc.; só queremos
@@ -81,11 +79,6 @@ public final class CsvWriter implements Closeable, Flushable {
     /** Data e hora no fuso da empresa: {@code dd/MM/yyyy HH:mm}. */
     public static String dateTime(Instant value, ZoneId zone) {
         return value == null ? "" : DATE_TIME.format(value.atZone(zone));
-    }
-
-    @Override
-    public void flush() throws IOException {
-        sequence.flush();
     }
 
     @Override
