@@ -1,0 +1,8 @@
+# Anotações e planos de trabalho locais
+.superpowers/
+
+# Python (reports-service)
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
