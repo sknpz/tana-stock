@@ -372,7 +372,7 @@ The PDF service (`reports-service/`, port `8000`) has its own, much smaller API.
 * **CSV files are made for Excel in Portuguese.** They start with a UTF-8 BOM (so accents are read correctly), use `;` as separator and `\r\n` line endings, write numbers with a decimal comma and no thousands separator (`1234,50`, which Excel recognizes as a number) and dates as `dd/MM/yyyy HH:mm` in the company time zone.
 * **CSV injection is prevented.** Free-text fields that start with `=`, `+`, `-`, `@`, a tab or `\r` get a `'` in front, so a product named `=HYPERLINK(...)` can't run as a formula when the file is opened ([OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection)). The files are streamed from the database, with no row limit.
 * **Period filters are inclusive and use the company time zone** (`America/Sao_Paulo`): `to` covers the whole last day. `from` after `to` → `400` with the error on the `to` field.
-* **The PDF service doesn't repeat the API's rules.** Invalid tokens, deactivated users and permissions are decided by the Java API, and the service returns its `401`/`403`; if the API is down or too slow, the service answers `502`/`504`. The full report shows at most 5,000 movements (the most recent) and says so; the entry and exit totals still cover the whole period.
+* **The PDF service doesn't repeat the API's rules.** Invalid tokens, deactivated users and permissions are decided by the Java API, and the service returns its `401`/`403`; if the API is down or too slow, the service answers `502`/`504`. The full report shows at most 2,000 movements (the most recent) and says so; the entry and exit totals still cover the whole period.
 * **Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (Problem Details)**, with per-field messages on validation errors:
 
 ```json
@@ -411,7 +411,7 @@ Docker must be running: the integration tests start a temporary PostgreSQL with 
 | **Integration** (MockMvc + Testcontainers) | Every endpoint through the full HTTP stack, including Spring Security: validation errors, conflicts, soft delete, filters and pagination, reports, users and profiles, 401/403, CORS |
 | **Concurrency** | 20 simultaneous exits against a product with 7 units: exactly 7 succeed |
 | **CSV and period** (MockMvc + Testcontainers) | The three CSV files (BOM, header, formatted values, filters, 401), formula injection, quote and `;` escaping, inclusive period limits, the inventory and movements-summary reports |
-| **Python service** (pytest) | pt-BR formatting, token forwarding, 401/403/502 handling, period validation, movement pagination and the 5,000 limit, and PDFs rendered for real (starts with `%PDF`, page count, extracted text) with the Java API mocked |
+| **Python service** (pytest) | pt-BR formatting, token forwarding, 401/403/502 handling, period validation, movement pagination and the 2,000 limit, and PDFs rendered for real (starts with `%PDF`, page count, extracted text) with the Java API mocked |
 
 All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github/sknpz/tana/IntegrationTest.java) and share one Spring context and one database container. Each test creates its own data with unique names instead of relying on an empty database.
 
@@ -450,8 +450,8 @@ All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github
 
 ### Free plan behavior
 
-* Both services (API and PDF) **sleep after 15 minutes without requests**. The front-end wakes the PDF service when the Reports page opens, and the PDF service waits for the API to wake up (up to `API_TIMEOUT_SECONDS`).
-* The API **sleeps after 15 minutes without requests**. The next request wakes it up, which takes about a minute (about 70 seconds measured on the first deploy); meanwhile the page shows a notice instead of looking frozen.
+* Both services (API and PDF) **sleep after 15 minutes without requests**. The next request wakes them up, which takes about a minute (about 70 seconds measured on the first deploy for the API); meanwhile the page shows a notice instead of looking frozen. The front-end wakes the PDF service when the Reports page opens, and the PDF service waits for the API to wake up (up to `API_TIMEOUT_SECONDS`).
+* The full PDF report shows at most the 2,000 most recent movements of the period because of the 512 MB memory limit; the totals still cover the whole period.
 * The image is tuned for 512 MB of memory (heap limited to the container, Serial GC, faster JIT startup). Locally, with the same limits, it uses about 300 MB.
 * Every table has Row Level Security enabled without policies ([`V3`](backend/src/main/resources/db/migration/V3__enable_row_level_security.sql)), which blocks Supabase's automatic Data API. The API connects as the tables' owner and is not affected.
 

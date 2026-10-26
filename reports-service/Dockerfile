@@ -1,4 +1,4 @@
-# Imagem do serviço de relatórios em PDF (FastAPI + WeasyPrint), usada no deploy (Render) e no compose.yaml
+# Imagem do serviço de relatórios em PDF (FastAPI + WeasyPrint), usada no deploy (Render)
 
 FROM python:3.12-slim
 WORKDIR /app

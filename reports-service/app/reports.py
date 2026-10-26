@@ -13,7 +13,7 @@ from app.api_client import TanaApiClient
 
 SUMMARY_MAX_ALERTS = 15
 SUMMARY_MAX_CATEGORIES = 5
-FULL_MAX_MOVEMENTS = 5000
+FULL_MAX_MOVEMENTS = 2000
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -51,7 +51,7 @@ def _with_colors(rows: list[dict], *, grouped: bool) -> list[dict]:
 def _alert_row(product: dict) -> dict:
     status = product["stockStatus"]
     return {
-        "name": product["name"], "sku": product["sku"], "quantity": product["quantity"],
+        "name": product["name"], "sku": product["sku"] or "-", "quantity": product["quantity"],
         "min_stock": product["minStock"], "status": STATUS_LABELS.get(status, status), "out": status == "OUT_OF_STOCK",
     }
 
@@ -92,7 +92,7 @@ def build_summary_context(client: TanaApiClient, now: datetime, zone: ZoneInfo, 
 
 def _inventory_row(product: dict) -> dict:
     return {
-        "sku": product["sku"],
+        "sku": product["sku"] or "-",
         "name": product["name"],
         "category": product["category"]["name"] if product["category"] else "Sem categoria",
         "supplier": product["supplier"]["name"] if product["supplier"] else "-",

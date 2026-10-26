@@ -127,7 +127,7 @@ As movimentações do período vêm da listagem paginada com o filtro novo (`siz
 
 `GET /api/reports/movements-summary?from=&to=` (mesmas regras de período da seção 1.1) devolve
 `{ "entries": { "count", "units" }, "exits": { "count", "units" } }`, somados no banco. Assim os totais do PDF
-Completo cobrem o período inteiro, mesmo quando a tabela de movimentações é cortada no limite de 5.000 linhas.
+Completo cobrem o período inteiro, mesmo quando a tabela de movimentações é cortada no limite de 2.000 linhas.
 
 ### 1.5 Testes (Java)
 
@@ -199,7 +199,8 @@ no fuso da empresa. Formatação pt-BR feita por funções próprias, sem depend
 - Movimentações do período: totais de entradas e de saídas (quantidade de movimentações e unidades, vindos
   de `GET /api/reports/movements-summary`, portanto do período inteiro) + tabela (data, produto, tipo,
   quantidade, saldo, usuário). Período sem movimentações → frase dizendo isso. Limite de segurança de
-  5.000 movimentações: acima disso, o relatório mostra as 5.000 mais recentes e avisa.
+  5.000 movimentações: acima disso, o relatório mostra as 2.000 mais recentes e avisa. (O limite foi reduzido de 5.000 para 2.000
+  após medir a memória no plano de 512 MB do Render.)
 
 ### 2.4 Estrutura
 
@@ -226,7 +227,7 @@ pytest com a API Java simulada (`httpx.MockTransport` ou `respx`), sem rede:
 - Formatação pt-BR (moeda, milhar, datas no fuso).
 - Repasse do token; 401 sem header (sem chamar a API); 401/403 da API repassados; API fora → 502.
 - Validação de período (`from > to`, mais de 366 dias, padrão = mês atual).
-- Paginação das movimentações, inclusive o limite de 5.000.
+- Paginação das movimentações, inclusive o limite de 2.000.
 - PDFs gerados de verdade: o arquivo começa com `%PDF`, o Resumo tem 1 página, e o texto extraído
   (pypdf) contém os valores esperados. Também casos vazios (sem produtos, sem alertas, sem movimentações).
 
@@ -271,7 +272,7 @@ pytest com a API Java simulada (`httpx.MockTransport` ou `respx`), sem rede:
 
 ## Decisões tomadas pelo builder (não pelo usuário)
 
-- Período padrão do Completo: mês atual até hoje. Limites: 366 dias, 5.000 movimentações e 15 alertas no Resumo.
+- Período padrão do Completo: mês atual até hoje. Limites: 366 dias, 2.000 movimentações e 15 alertas no Resumo. O limite de movimentações foi reduzido de 5.000 para 2.000 após medir a memória no plano de 512 MB do Render (5.000 derrubou o contêiner por falta de memória).
 - Endpoint `GET /api/reports/inventory`, em vez de o Python paginar os produtos.
 - Validação do token pelo `GET /api/auth/me`, em vez de compartilhar o segredo do JWT com o Python.
 - Números no CSV sem separador de milhar.

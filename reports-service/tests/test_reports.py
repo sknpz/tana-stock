@@ -144,6 +144,17 @@ def test_product_without_category_or_supplier(fake_api):
     assert re.search(r"AVU-001\s+Produto avulso\s+Sem categoria\s+-\s", text)
 
 
+def test_product_without_sku_shows_dash(fake_api):
+    fake_api.products.append(fake_api.make_product(98, "Sem codigo", None, None, None, "10.00", 0, 5))
+
+    _, summary_text = summary(fake_api)
+    _, full_text = full(fake_api)
+
+    assert "None" not in summary_text and "None" not in full_text
+    assert re.search(r"Sem codigo\s+-\s", summary_text)
+    assert re.search(r"-\s+Sem codigo\s+Sem categoria", full_text)
+
+
 def test_group_categories_sums_outras():
     rows = [{"category": f"C{i}", "quantity": i, "value": Decimal(100 - i), "percentage": Decimal("10.5")}
             for i in range(1, 9)]
@@ -177,7 +188,7 @@ def test_charts_return_svg_data_uri_or_none_when_empty():
 
 
 def test_limits():
-    assert (reports.SUMMARY_MAX_ALERTS, reports.SUMMARY_MAX_CATEGORIES, reports.FULL_MAX_MOVEMENTS) == (15, 5, 5000)
+    assert (reports.SUMMARY_MAX_ALERTS, reports.SUMMARY_MAX_CATEGORIES, reports.FULL_MAX_MOVEMENTS) == (15, 5, 2000)
 
 
 def test_full_category_swatches_match_their_own_slice(fake_api):
