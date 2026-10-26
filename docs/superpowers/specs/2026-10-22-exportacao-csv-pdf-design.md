@@ -199,7 +199,7 @@ no fuso da empresa. Formatação pt-BR feita por funções próprias, sem depend
 - Movimentações do período: totais de entradas e de saídas (quantidade de movimentações e unidades, vindos
   de `GET /api/reports/movements-summary`, portanto do período inteiro) + tabela (data, produto, tipo,
   quantidade, saldo, usuário). Período sem movimentações → frase dizendo isso. Limite de segurança de
-  5.000 movimentações: acima disso, o relatório mostra as 2.000 mais recentes e avisa. (O limite foi reduzido de 5.000 para 2.000
+  2.000 movimentações: acima disso, o relatório mostra as 2.000 mais recentes e avisa. (O limite foi reduzido de 5.000 para 2.000
   após medir a memória no plano de 512 MB do Render.)
 
 ### 2.4 Estrutura
