@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% import "_sections.html" as sections %}
+{% block body_class %}summary{% endblock %}
+{% block content %}
+{{ sections.overview(report) }}
+{% endblock %}
